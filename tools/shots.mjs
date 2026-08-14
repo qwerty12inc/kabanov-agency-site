@@ -114,13 +114,18 @@ async function main() {
     const lf = `${OUT}/local/${name}.png`;
     const vf = `${OUT}/live/${name}.png`;
     try {
-      const lp = await localCtx.newPage();
-      await shoot(lp, `${LOCAL}${path}`, lf);
-      await lp.close();
-
-      const vp = await liveCtx.newPage();
-      await shoot(vp, `${LIVE}${path}`, vf);
-      await vp.close();
+      // Локальный и живой снимки — параллельно: браузеры разные, друг другу
+      // не мешают, а прогон по 82 страницам сокращается вдвое.
+      await Promise.all([
+        (async () => {
+          const lp = await localCtx.newPage();
+          try { await shoot(lp, `${LOCAL}${path}`, lf); } finally { await lp.close(); }
+        })(),
+        (async () => {
+          const vp = await liveCtx.newPage();
+          try { await shoot(vp, `${LIVE}${path}`, vf); } finally { await vp.close(); }
+        })(),
+      ]);
 
       const r = compare(await readFile(lf), await readFile(vf), `${OUT}/diff/${name}.png`);
       await writeFile(r.diffPath, r.diff);
