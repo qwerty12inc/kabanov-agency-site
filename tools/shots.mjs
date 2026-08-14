@@ -98,7 +98,14 @@ async function main() {
   await mkdir(`${OUT}/diff`, { recursive: true });
 
   writeFileSync(PROGRESS, '');
-  const localBrowser = await chromium.launch({ executablePath: CHROME });
+  // Локальному браузеру даём тот же выход в сеть, что и «живому». На 26 страницах
+  // стоят плееры Vimeo; без доступа наружу они отрисовались бы только на живом
+  // сайте, и сравнение показало бы расхождение там, где копия ни при чём.
+  const localBrowser = await chromium.launch({
+    executablePath: CHROME,
+    proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
+    args: LIVE_ARGS,
+  });
   const liveBrowser = await chromium.launch({
     executablePath: CHROME,
     proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },

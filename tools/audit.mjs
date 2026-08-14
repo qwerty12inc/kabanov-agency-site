@@ -24,6 +24,12 @@ const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const CHROME = '/opt/pw-browsers/chromium';
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 
+/**
+ * Осознанно оставленное исключение: на 26 страницах стоят плееры Vimeo,
+ * решено сохранить их как есть. Всё, что вне этого списка, — дефект копии.
+ */
+const ALLOWED_EXTERNAL = /(^|\.)(vimeo\.com|vimeocdn\.com)$/;
+
 /** RU-путь ↔ EN-путь. RU живёт в корне, EN — под /en. Учитываем и `/en` без слэша. */
 const alternateOf = (p) => {
   if (p === '/en' || p === '/en/') return '/';
@@ -58,7 +64,14 @@ async function main() {
   const paths = manifest.pages.map((p) => p.urlPath);
 
   writeFileSync(PROGRESS, '');
-  const browser = await chromium.launch({ executablePath: CHROME });
+  // С выходом в сеть: плееры Vimeo должны реально загрузиться, иначе в лог попадёт
+  // один оборванный запрос вместо полного набора, который увидит настоящий посетитель.
+  // ssl-version-max — обход прокси песочницы, рвущего TLS-рукопожатие Chromium.
+  const browser = await chromium.launch({
+    executablePath: CHROME,
+    proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
+    args: ['--disable-features=PostQuantumKyber,EncryptedClientHello,TLS13EarlyData', '--ssl-version-max=tls1.2'],
+  });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 
   const external = [];   // запросы наружу — их быть не должно
@@ -113,22 +126,40 @@ async function main() {
 
   await browser.close();
 
-  const report = { base: BASE, pages: paths.length, totalRequests, external, broken, consoleErrors, results };
+  const report = {
+    base: BASE,
+    pages: paths.length,
+    totalRequests,
+    external,
+    externalUnexpected: external.filter((e) => !ALLOWED_EXTERNAL.test(new URL(e.url).hostname)),
+    broken,
+    consoleErrors,
+    results,
+  };
   await writeFile('.work/audit-report.json', JSON.stringify(report, null, 2));
 
   console.log(`\nстраниц пройдено: ${paths.length} (+ переход в соседнюю локаль на каждой)`);
   console.log(`сетевых запросов всего: ${totalRequests}`);
   console.log(`смена локали корректна: ${results.filter((r) => r.langOk).length}/${paths.length}`);
 
+  const groupByHost = (list) => {
+    const by = {};
+    for (const e of list) (by[new URL(e.url).hostname] ||= []).push(e);
+    return by;
+  };
+  const allowed = external.filter((e) => ALLOWED_EXTERNAL.test(new URL(e.url).hostname));
+  const unexpected = external.filter((e) => !ALLOWED_EXTERNAL.test(new URL(e.url).hostname));
+
   console.log(`\n=== ЗАПРОСЫ К ВНЕШНИМ ДОМЕНАМ: ${external.length} ===`);
-  if (external.length) {
-    const byHost = {};
-    for (const e of external) {
-      const h = new URL(e.url).hostname;
-      (byHost[h] ||= []).push(e);
-    }
-    for (const [host, list] of Object.entries(byHost)) {
-      console.log(`  ${host} — ${list.length} запр., напр.: ${list[0].url.slice(0, 100)} (${list[0].type}) на ${list[0].page}`);
+  console.log(`\n-- разрешённое исключение (плееры Vimeo): ${allowed.length} --`);
+  for (const [host, list] of Object.entries(groupByHost(allowed))) {
+    const pages = new Set(list.map((e) => e.page));
+    console.log(`  ${host} — ${list.length} запр. на ${pages.size} стр.`);
+  }
+  console.log(`\n-- НЕОЖИДАННЫЕ (должно быть пусто): ${unexpected.length} --`);
+  if (unexpected.length) {
+    for (const [host, list] of Object.entries(groupByHost(unexpected))) {
+      console.log(`  ✗ ${host} — ${list.length} запр., напр.: ${list[0].url.slice(0, 100)} (${list[0].type}) на ${list[0].page}`);
     }
   } else {
     console.log('  список пуст');
@@ -143,7 +174,7 @@ async function main() {
   const uniqErr = [...new Map(consoleErrors.map((e) => [e.text, e])).values()];
   for (const e of uniqErr.slice(0, 15)) console.log(`  ${e.text} (${e.page})`);
 
-  process.exit(external.length === 0 && uniqBroken.length === 0 ? 0 : 1);
+  process.exit(unexpected.length === 0 && uniqBroken.length === 0 ? 0 : 1);
 }
 
 main();

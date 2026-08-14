@@ -169,9 +169,15 @@ const PREFIX_PATCHES = [
   ['https://framer.com/edit/init.mjs', `${BASE}/assets/js/editor-bar-stub.mjs`],
 ];
 
+// Вызывающий код: `let {createEditorBar:e} = await import(…); return {default: e()}`
+// — то есть результат createEditorBar() рендерится как ленивый React-компонент.
+// Вернуть отсюда обычный объект нельзя: React падает с ошибкой #130
+// («element type is invalid… got: object») и роняет гидратацию всей страницы.
+// Отдаём компонент, который ничего не рисует.
 const EDITOR_BAR_STUB =
   '// Заглушка панели редактирования Framer: в автономной копии редактор не нужен.\n' +
-  'export const createEditorBar = () => ({ destroy() {} });\n' +
+  '// Должна возвращать именно React-компонент — результат рендерится как ленивый.\n' +
+  'export const createEditorBar = () => () => null;\n' +
   'export default { createEditorBar };\n';
 
 function patchPrefixLiterals(text) {
