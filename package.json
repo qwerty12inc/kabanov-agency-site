@@ -1,0 +1,22 @@
+{
+  "name": "kabanov-agency-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Автономная статическая копия kabanov.agency (снята с Framer)",
+  "type": "module",
+  "scripts": {
+    "crawl": "node tools/crawl.mjs",
+    "assets": "node tools/assets.mjs",
+    "serve": "node tools/serve.mjs",
+    "audit": "node tools/audit.mjs",
+    "shots": "node tools/shots.mjs",
+    "precompress": "node tools/precompress.mjs",
+    "check:links": "node tools/check-links.mjs",
+    "check:seo": "node tools/check-seo.mjs"
+  },
+  "devDependencies": {
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.62.1",
+    "pngjs": "^7.0.0"
+  }
+}
