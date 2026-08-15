@@ -5,9 +5,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { PROFILE } from './lib.mjs';
 
 const WIDTH = Number(process.env.WIDTH || 320);
 const QUALITY = Number(process.env.QUALITY || 0.55);
+const MAX_ASPECT = Number(process.env.MAX_ASPECT || 2.2);
 const PORT = 4199;
 
 const slug = (p) => (p === '/' ? 'home' : p.replace(/^\//, '').replace(/\//g, '_'));
@@ -22,7 +24,7 @@ const server = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return res.end('<!doctype html><title>thumbs</title>');
   }
-  const file = `shots${path}`;
+  const file = `shots/${PROFILE}${path}`;
   if (!existsSync(file)) {
     res.writeHead(404);
     return res.end();
@@ -33,7 +35,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
 const manifest = JSON.parse(await readFile('.work/manifest.json', 'utf8'));
-const shots = JSON.parse(await readFile('.work/shots-report.json', 'utf8'));
+const shots = JSON.parse(await readFile(`.work/shots-report-${PROFILE}.json`, 'utf8'));
 const percentOf = new Map(shots.rows.map((r) => [r.path, r.percent]));
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -42,20 +44,25 @@ await page.goto(`http://127.0.0.1:${PORT}/`);
 
 async function thumb(url) {
   return page.evaluate(
-    async ([src, w, q]) => {
+    async ([src, w, q, maxAspect]) => {
       const img = new Image();
       img.src = src;
       await img.decode();
-      const h = Math.round((img.naturalHeight / img.naturalWidth) * w);
+      // Высоту режем на генерации: мобильная страница бывает в 4700px, и полный
+      // кадр раздул бы страницу-отчёт. В листе он всё равно показывается обрезанным.
+      const full = Math.round((img.naturalHeight / img.naturalWidth) * w);
+      const h = Math.min(full, Math.round(w * maxAspect));
       const c = document.createElement('canvas');
       c.width = w;
       c.height = h;
       const ctx = c.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, w, h);
+      // Рисуем верх страницы: если кадр обрезан, нужен именно он, а не сжатие целого.
+      const srcH = Math.round((h / w) * img.naturalWidth);
+      ctx.drawImage(img, 0, 0, img.naturalWidth, srcH, 0, 0, w, h);
       return { data: c.toDataURL('image/jpeg', q), w, h: h };
     },
-    [url, WIDTH, QUALITY],
+    [url, WIDTH, QUALITY, MAX_ASPECT],
   );
 }
 
@@ -86,6 +93,6 @@ for (const [i, p] of manifest.pages.entries()) {
 await browser.close();
 server.close();
 
-await writeFile('.work/thumbs.json', JSON.stringify(out));
-console.log(`миниатюр: ${out.length}, ширина ${WIDTH}px, качество ${QUALITY}`);
+await writeFile(`.work/thumbs-${PROFILE}.json`, JSON.stringify(out));
+console.log(`профиль ${PROFILE}: миниатюр ${out.length}, ширина ${WIDTH}px, качество ${QUALITY}, макс. пропорция 1:${MAX_ASPECT}`);
 console.log(`суммарный вес data:URI: ${(bytes / 1e6).toFixed(1)} МБ`);

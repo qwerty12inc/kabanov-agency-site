@@ -7,15 +7,15 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { appendFileSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { PROFILE, profileOpts } from './lib.mjs';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 
 const LOCAL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const LIVE = 'https://kabanov.agency';
 const CHROME = '/opt/pw-browsers/chromium';
-const OUT = 'shots';
+const OUT = `shots/${PROFILE}`;
 const THRESHOLD = Number(process.env.THRESHOLD || 2); // % расхождения для попадания в отчёт
-const VIEWPORT = { width: 1440, height: 900 };
 
 // Прокси песочницы рвёт TLS-рукопожатие Chromium с современными расширениями,
 // поэтому для живого сайта фиксируем TLS 1.2. На вёрстку это не влияет.
@@ -28,14 +28,14 @@ const slug = (p) => (p === '/' ? 'home' : p.replace(/^\//, '').replace(/\//g, '_
 
 // Прогон возобновляемый: снятые PNG остаются на диске и переиспользуются,
 // поэтому повторный запуск доснимает только недостающие страницы.
-const ROWS = '.work/shots-rows.jsonl';
+const ROWS = `.work/shots-rows-${PROFILE}.jsonl`;
 const loadRows = () =>
   existsSync(ROWS)
     ? readFileSync(ROWS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
     : [];
 
 // stdout при перенаправлении в файл буферизуется поблочно — прогресс пишем синхронно.
-const PROGRESS = '.work/shots-progress.log';
+const PROGRESS = `.work/shots-progress-${PROFILE}.log`;
 const note = (line) => {
   appendFileSync(PROGRESS, `${new Date().toISOString().slice(11, 19)}  ${line}\n`);
   console.log(line);
@@ -77,15 +77,33 @@ async function waitForVimeo(page, timeout = 20000) {
   }
   const frames = page.frames().filter((f) => /player\.vimeo\.com/.test(f.url()));
   if (!frames.length) return 0;
-  // Затем дождаться, пока внутри отрисуется постер или само видео.
+  // Сам iframe появляется быстро на обеих сторонах — расходится момент отрисовки
+  // его содержимого. Поэтому ждём не селектор (разметка плеера меняется от версии
+  // к версии, и промах по классу завершал ожидание мгновенно), а факт, что внутри
+  // фрейма реально что-то нарисовано.
   await Promise.all(
-    frames.map((f) =>
-      f.waitForSelector('video, .vp-video, .vp-preview, [class*=poster]', {
-        timeout: Math.max(1000, deadline - Date.now()),
-      }).catch(() => {}),
-    ),
+    frames.map(async (f) => {
+      await f.waitForLoadState('load', { timeout: Math.max(1000, deadline - Date.now()) }).catch(() => {});
+      while (Date.now() < deadline) {
+        const painted = await f
+          .evaluate(() => {
+            const el = document.body;
+            if (!el || el.scrollHeight < 40) return false;
+            // Постер плеера — либо <video>, либо элемент с фоновой картинкой.
+            if (document.querySelector('video')) return true;
+            return [...document.querySelectorAll('div,img')].some((n) => {
+              if (n.tagName === 'IMG' && n.naturalWidth > 100) return true;
+              const bg = getComputedStyle(n).backgroundImage;
+              return bg && bg !== 'none' && n.getBoundingClientRect().height > 80;
+            });
+          })
+          .catch(() => false);
+        if (painted) return;
+        await page.waitForTimeout(400);
+      }
+    }),
   );
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(3000);
   return frames.length;
 }
 
@@ -136,7 +154,7 @@ async function main() {
   writeFileSync(PROGRESS, '');
   const measured = new Set(loadRows().map((r) => r.path));
   const todo = paths.filter((p) => !measured.has(p));
-  note(`страниц всего ${paths.length}, уже сравнено ${measured.size}, осталось ${todo.length}`);
+  note(`профиль ${PROFILE} (${profileOpts().viewport.width}px): страниц всего ${paths.length}, уже сравнено ${measured.size}, осталось ${todo.length}`);
 
   let localBrowser;
   let liveBrowser;
@@ -154,7 +172,7 @@ async function main() {
     };
     localBrowser = await chromium.launch(opts);
     liveBrowser = await chromium.launch(opts);
-    const ctxOpts = { viewport: VIEWPORT, deviceScaleFactor: 1, reducedMotion: 'reduce', ignoreHTTPSErrors: true };
+    const ctxOpts = { ...profileOpts(), reducedMotion: 'reduce', ignoreHTTPSErrors: true };
     localCtx = await localBrowser.newContext(ctxOpts);
     liveCtx = await liveBrowser.newContext(ctxOpts);
   };
@@ -202,7 +220,7 @@ async function main() {
 
   const rows = loadRows();
   rows.sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1));
-  await writeFile('.work/shots-report.json', JSON.stringify({ threshold: THRESHOLD, viewport: VIEWPORT, rows }, null, 2));
+  await writeFile(`.work/shots-report-${PROFILE}.json`, JSON.stringify({ profile: PROFILE, threshold: THRESHOLD, viewport: profileOpts().viewport, rows }, null, 2));
 
   const ok = rows.filter((r) => r.percent !== undefined);
   const over = ok.filter((r) => r.percent > THRESHOLD);

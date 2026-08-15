@@ -11,10 +11,11 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { appendFileSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { PROFILE, profileOpts } from './lib.mjs';
 
 // Прогон возобновляемый: результат каждой страницы дописывается сюда сразу.
 // Если процесс убьют на середине, повторный запуск доделает остаток.
-const ROWS = '.work/audit-rows.jsonl';
+const ROWS = `.work/audit-rows-${PROFILE}.jsonl`;
 const loadRows = () =>
   existsSync(ROWS)
     ? readFileSync(ROWS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
@@ -22,7 +23,7 @@ const loadRows = () =>
 
 // stdout при перенаправлении в файл буферизуется поблочно, поэтому прогресс
 // пишем отдельно синхронно — иначе за долгим прогоном нельзя следить.
-const PROGRESS = '.work/audit-progress.log';
+const PROGRESS = `.work/audit-progress-${PROFILE}.log`;
 const note = (line) => {
   appendFileSync(PROGRESS, `${new Date().toISOString().slice(11, 19)}  ${line}\n`);
   console.log(line);
@@ -90,7 +91,7 @@ async function main() {
   const done = new Set(loadRows().map((r) => r.path));
   const todo = paths.filter((p) => !done.has(p));
   writeFileSync(PROGRESS, '');
-  note(`страниц всего ${paths.length}, уже пройдено ${done.size}, осталось ${todo.length}`);
+  note(`профиль ${PROFILE} (${profileOpts().viewport.width}px): страниц всего ${paths.length}, уже пройдено ${done.size}, осталось ${todo.length}`);
   if (!todo.length) note('всё пройдено — только собираю отчёт');
   // С выходом в сеть: плееры Vimeo должны реально загрузиться, иначе в лог попадёт
   // один оборванный запрос вместо полного набора, который увидит настоящий посетитель.
@@ -101,7 +102,7 @@ async function main() {
       proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
       args: ['--disable-features=PostQuantumKyber,EncryptedClientHello,TLS13EarlyData', '--ssl-version-max=tls1.2'],
     });
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const ctx = await browser.newContext(profileOpts());
 
     for (const [i, path] of todo.entries()) {
       const page = await ctx.newPage();
@@ -159,6 +160,8 @@ async function main() {
   const results = rows;
 
   const report = {
+    profile: PROFILE,
+    viewport: profileOpts().viewport,
     base: BASE,
     pages: paths.length,
     covered: rows.length,
@@ -169,7 +172,7 @@ async function main() {
     consoleErrors,
     results,
   };
-  await writeFile('.work/audit-report.json', JSON.stringify(report, null, 2));
+  await writeFile(`.work/audit-report-${PROFILE}.json`, JSON.stringify(report, null, 2));
 
   console.log(`\nстраниц пройдено: ${rows.length}/${paths.length} (+ переход в соседнюю локаль на каждой)`);
   console.log(`сетевых запросов всего: ${totalRequests}`);

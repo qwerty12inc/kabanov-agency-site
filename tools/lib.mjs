@@ -22,6 +22,26 @@ export const TRACKER_HOSTS = new Set([
   'google-analytics.com',
 ]);
 
+/**
+ * Профили просмотра. Framer раскладывает страницу по CSS-брейкпоинтам ширины и
+ * на узком экране подставляет другие компоненты и другие варианты картинок,
+ * поэтому мобильную версию нужно проверять отдельным прогоном.
+ * User-agent не подменяем: чужой UA на Chromium включал бы посторонние ветки
+ * кода, а брейкпоинты и так считаются от ширины.
+ */
+export const PROFILES = {
+  desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
+  mobile: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true },
+};
+
+export const PROFILE = process.env.PROFILE || 'desktop';
+
+export function profileOpts() {
+  const p = PROFILES[PROFILE];
+  if (!p) throw new Error(`неизвестный профиль «${PROFILE}», ожидался один из: ${Object.keys(PROFILES).join(', ')}`);
+  return p;
+}
+
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
