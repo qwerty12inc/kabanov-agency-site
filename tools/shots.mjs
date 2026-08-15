@@ -5,7 +5,7 @@
 //  • прокрутка до конца и обратно — Framer грузит картинки лениво;
 //  • ожидание document.fonts.ready — иначе ловим кадр с ещё не подставленным шрифтом.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
@@ -25,6 +25,14 @@ const LIVE_ARGS = [
 ];
 
 const slug = (p) => (p === '/' ? 'home' : p.replace(/^\//, '').replace(/\//g, '_'));
+
+// Прогон возобновляемый: снятые PNG остаются на диске и переиспользуются,
+// поэтому повторный запуск доснимает только недостающие страницы.
+const ROWS = '.work/shots-rows.jsonl';
+const loadRows = () =>
+  existsSync(ROWS)
+    ? readFileSync(ROWS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+    : [];
 
 // stdout при перенаправлении в файл буферизуется поблочно — прогресс пишем синхронно.
 const PROGRESS = '.work/shots-progress.log';
@@ -98,55 +106,73 @@ async function main() {
   await mkdir(`${OUT}/diff`, { recursive: true });
 
   writeFileSync(PROGRESS, '');
-  // Локальному браузеру даём тот же выход в сеть, что и «живому». На 26 страницах
-  // стоят плееры Vimeo; без доступа наружу они отрисовались бы только на живом
-  // сайте, и сравнение показало бы расхождение там, где копия ни при чём.
-  const localBrowser = await chromium.launch({
-    executablePath: CHROME,
-    proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
-    args: LIVE_ARGS,
-  });
-  const liveBrowser = await chromium.launch({
-    executablePath: CHROME,
-    proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
-    args: LIVE_ARGS,
-  });
-  const ctxOpts = { viewport: VIEWPORT, deviceScaleFactor: 1, reducedMotion: 'reduce', ignoreHTTPSErrors: true };
-  const localCtx = await localBrowser.newContext(ctxOpts);
-  const liveCtx = await liveBrowser.newContext(ctxOpts);
+  const measured = new Set(loadRows().map((r) => r.path));
+  const todo = paths.filter((p) => !measured.has(p));
+  note(`страниц всего ${paths.length}, уже сравнено ${measured.size}, осталось ${todo.length}`);
 
-  const rows = [];
-  for (const [i, path] of paths.entries()) {
+  let localBrowser;
+  let liveBrowser;
+  let localCtx;
+  let liveCtx;
+  const ensureBrowsers = async () => {
+    if (localBrowser) return;
+    // Локальному браузеру даём тот же выход в сеть, что и «живому». На 26 страницах
+    // стоят плееры Vimeo; без доступа наружу они отрисовались бы только на живом
+    // сайте, и сравнение показало бы расхождение там, где копия ни при чём.
+    const opts = {
+      executablePath: CHROME,
+      proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
+      args: LIVE_ARGS,
+    };
+    localBrowser = await chromium.launch(opts);
+    liveBrowser = await chromium.launch(opts);
+    const ctxOpts = { viewport: VIEWPORT, deviceScaleFactor: 1, reducedMotion: 'reduce', ignoreHTTPSErrors: true };
+    localCtx = await localBrowser.newContext(ctxOpts);
+    liveCtx = await liveBrowser.newContext(ctxOpts);
+  };
+
+  for (const [i, path] of todo.entries()) {
     const name = slug(path);
     const lf = `${OUT}/local/${name}.png`;
     const vf = `${OUT}/live/${name}.png`;
+    const n = measured.size + i + 1;
     try {
-      // Локальный и живой снимки — параллельно: браузеры разные, друг другу
-      // не мешают, а прогон по 82 страницам сокращается вдвое.
-      await Promise.all([
-        (async () => {
+      // Каждая сторона снимается независимо: после пересборки копии достаточно
+      // удалить shots/local, живые снимки останутся и переснимать их не нужно.
+      const jobs = [];
+      if (!existsSync(lf)) {
+        await ensureBrowsers();
+        jobs.push(async () => {
           const lp = await localCtx.newPage();
           try { await shoot(lp, `${LOCAL}${path}`, lf); } finally { await lp.close(); }
-        })(),
-        (async () => {
+        });
+      }
+      if (!existsSync(vf)) {
+        await ensureBrowsers();
+        jobs.push(async () => {
           const vp = await liveCtx.newPage();
           try { await shoot(vp, `${LIVE}${path}`, vf); } finally { await vp.close(); }
-        })(),
-      ]);
+        });
+      }
+      // Обе стороны параллельно: браузеры разные, друг другу не мешают.
+      await Promise.all(jobs.map((j) => j()));
 
       const r = compare(await readFile(lf), await readFile(vf), `${OUT}/diff/${name}.png`);
       await writeFile(r.diffPath, r.diff);
-      rows.push({ path, percent: r.percent, changed: r.changed, total: r.total, sizeLocal: r.sizeLocal, sizeLive: r.sizeLive });
-      note(`  [${i + 1}/${paths.length}] ${path} — ${r.percent.toFixed(2)}%  ${r.sizeLocal} / ${r.sizeLive}`);
+      const row = { path, percent: r.percent, changed: r.changed, total: r.total, sizeLocal: r.sizeLocal, sizeLive: r.sizeLive };
+      appendFileSync(ROWS, `${JSON.stringify(row)}\n`);
+      note(`  [${n}/${paths.length}] ${path} — ${r.percent.toFixed(2)}%  ${r.sizeLocal} / ${r.sizeLive}`);
     } catch (err) {
-      rows.push({ path, error: err.message.split('\n')[0] });
-      note(`  ✗ [${i + 1}/${paths.length}] ${path}: ${err.message.split('\n')[0]}`);
+      const row = { path, error: err.message.split('\n')[0] };
+      appendFileSync(ROWS, `${JSON.stringify(row)}\n`);
+      note(`  ✗ [${n}/${paths.length}] ${path}: ${row.error}`);
     }
   }
 
-  await localBrowser.close();
-  await liveBrowser.close();
+  await localBrowser?.close();
+  await liveBrowser?.close();
 
+  const rows = loadRows();
   rows.sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1));
   await writeFile('.work/shots-report.json', JSON.stringify({ threshold: THRESHOLD, viewport: VIEWPORT, rows }, null, 2));
 

@@ -6,6 +6,7 @@
 // разрешился бы неправильно. Корне-абсолютный путь стабилен на любой глубине.
 // Для деплоя в подпапку задайте BASE=/subdir.
 import { readFile, rm, mkdir, cp } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { extname, basename } from 'node:path';
 import {
@@ -203,12 +204,34 @@ function patchUrlBases(text) {
   return text.replace(NEW_URL_BASE_RE, (_m, rel, base) => `new URL(${rel},new URL(${base},location.origin))`);
 }
 
+/**
+ * `new URL(x)` без базы. Раньше x был абсолютным адресом CDN, после переписывания
+ * стал путём `/assets/…`, и конструктор падает с «Invalid URL», выключая
+ * интерактивность страницы (наблюдалось на /ai и /en/ai).
+ * Дописываем базу: для абсолютного адреса она игнорируется, для относительного —
+ * резолвит верно, так что правка безопасна во всех случаях. Двухаргументные
+ * вызовы под шаблон не попадают: после аргумента требуется закрывающая скобка.
+ */
+const NEW_URL_SINGLE_RE = /new URL\(([A-Za-z_$][A-Za-z0-9_$]*(?:\??\.[A-Za-z0-9_$]+)*)\)/g;
+
+function patchSingleArgUrls(text) {
+  return text.replace(NEW_URL_SINGLE_RE, (_m, arg) => `new URL(${arg},location.origin)`);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Скачивание с рекурсивным обходом: из .mjs/.css вылезают новые ссылки.
 // ─────────────────────────────────────────────────────────────────────────────
 const mapping = new Map(); // absolute url -> local path
 const failures = [];
 const bytes = new Map();
+
+// Кэш: скачанное однажды лежит в .work/raw-assets и переиспользуется, поэтому
+// повторная сборка не тянет 77 МБ заново. Удалите каталог, чтобы забрать свежее.
+const CACHE_MAP = '.work/asset-map.json';
+const cachedMap = existsSync(CACHE_MAP)
+  ? new Map(Object.entries(JSON.parse(readFileSync(CACHE_MAP, 'utf8'))))
+  : new Map();
+let reused = 0;
 
 async function harvest(seedUrls) {
   let frontier = [...seedUrls];
@@ -224,24 +247,34 @@ async function harvest(seedUrls) {
       if (mapping.has(url)) return;
       const ext = (extname(new URL(url).pathname) || '').toLowerCase();
       const isText = TEXT_EXT.has(ext);
-      let res;
-      try {
-        res = await fetchRetry(url, { asBuffer: !isText });
-      } catch (err) {
-        failures.push({ url, error: err.message });
-        return;
-      }
-      if (!res.ok) {
-        failures.push({ url, error: `HTTP ${res.status}` });
-        return;
-      }
       const local = localPath(url);
+      const cachedFile = `.work/raw-assets/${local}`;
+
+      let body;
+      if (cachedMap.get(url) === local && existsSync(cachedFile)) {
+        body = isText ? await readFile(cachedFile, 'utf8') : await readFile(cachedFile);
+        reused++;
+      } else {
+        let res;
+        try {
+          res = await fetchRetry(url, { asBuffer: !isText });
+        } catch (err) {
+          failures.push({ url, error: err.message });
+          return;
+        }
+        if (!res.ok) {
+          failures.push({ url, error: `HTTP ${res.status}` });
+          return;
+        }
+        body = res.body;
+        await writeFileDeep(cachedFile, body);
+      }
+
       mapping.set(url, local);
-      bytes.set(local, isText ? Buffer.byteLength(res.body) : res.body.length);
-      await writeFileDeep(`.work/raw-assets/${local}`, res.body);
+      bytes.set(local, isText ? Buffer.byteLength(body) : body.length);
       if (isText) {
-        for (const u of findVendorUrls(res.body)) if (!mapping.has(u)) nested.add(u);
-        for (const u of findRelativeRefs(res.body, url)) if (!mapping.has(u)) nested.add(u);
+        for (const u of findVendorUrls(body)) if (!mapping.has(u)) nested.add(u);
+        for (const u of findRelativeRefs(body, url)) if (!mapping.has(u)) nested.add(u);
       }
     });
 
@@ -258,7 +291,7 @@ function rewriteText(text) {
     const local = mapping.get(clean) ?? mapping.get(decodeEntities(clean));
     return local ? `${BASE}/${local}${tail}` : m;
   });
-  return patchUrlBases(patchPrefixLiterals(replaced));
+  return patchSingleArgUrls(patchUrlBases(patchPrefixLiterals(replaced)));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -360,7 +393,8 @@ async function main() {
 
   console.log('2) скачивание (с рекурсией по .mjs/.css)…');
   await harvest([...seeds]);
-  console.log(`   скачано: ${mapping.size}, ошибок: ${failures.length}`);
+  console.log(`   всего ресурсов: ${mapping.size} (из кэша ${reused}, скачано ${mapping.size - reused}), ошибок: ${failures.length}`);
+  await writeFileDeep(CACHE_MAP, JSON.stringify(Object.fromEntries(mapping), null, 0));
 
   console.log('3) переписывание путей внутри ресурсов…');
   await rm(OUT, { recursive: true, force: true });
