@@ -218,6 +218,56 @@ function patchSingleArgUrls(text) {
   return text.replace(NEW_URL_SINGLE_RE, (_m, arg) => `new URL(${arg},location.origin)`);
 }
 
+/**
+ * Загрузчик данных CMS просит у сервера куски файла query-параметром
+ * `?range=0-768,900-1200`. CDN Framer режет файл на своей стороне и отдаёт 200
+ * с одной лишь запрошенной склейкой; любой статический сервер query игнорирует
+ * и возвращает файл целиком, после чего проверка длины падает с
+ * «Request failed: Unexpected response length» и страница теряет
+ * интерактивность. Проявляется только при клиентской навигации, поэтому обычная
+ * загрузка страниц этот путь не задевает.
+ *
+ * Заменяем функцию целиком: качаем файл целиком и нарезаем на клиенте.
+ * Файлы по 35–42 КБ и кэшируются навсегда, так что цена невелика.
+ */
+function patchCmsRangeLoader(text) {
+  const anchor = text.indexOf('Unexpected response length');
+  if (anchor === -1) return { text, patched: false };
+
+  const start = text.lastIndexOf('async function ', anchor);
+  if (start === -1) return { text, patched: false };
+  let depth = 0;
+  let end = -1;
+  for (let i = text.indexOf('{', start); i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}' && --depth === 0) {
+      end = i + 1;
+      break;
+    }
+  }
+  if (end === -1) return { text, patched: false };
+
+  const fn = text.slice(start, end);
+  // Имена в сборке минифицированы, поэтому вытаскиваем их из самой функции.
+  const head = fn.match(/^async function (\w+)\((\w+),(\w+)\)\{let (\w+)=(\w+)\(\3\)/);
+  const fetcher = fn.match(/await (\w+)\(\w+\);if\(/)?.[1];
+  const buffer = fn.match(/new (\w+),\w+=0/)?.[1];
+  if (!head || !fetcher || !buffer) return { text, patched: false };
+
+  const [, name, urlArg, keysArg, , segmentsOf] = head;
+  const replacement =
+    `async function ${name}(${urlArg},${keysArg}){` +
+    `let segs=${segmentsOf}(${keysArg});` +
+    `let res=await ${fetcher}(new URL(${urlArg}));` +
+    'if(res.status!==200)throw Error(`Request failed: ${res.status} ${res.statusText}`);' +
+    `let full=new Uint8Array(await res.arrayBuffer());` +
+    `let buf=new ${buffer};` +
+    `for(let s of segs)buf.write(s.from,full.subarray(s.from,s.to));` +
+    `return ${keysArg}.map(k=>buf.read(k.from,k.to-k.from))}`;
+
+  return { text: text.slice(0, start) + replacement + text.slice(end), patched: true };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Скачивание с рекурсивным обходом: из .mjs/.css вылезают новые ссылки.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -397,6 +447,8 @@ async function main() {
   await writeFileDeep(CACHE_MAP, JSON.stringify(Object.fromEntries(mapping), null, 0));
 
   console.log('3) переписывание путей внутри ресурсов…');
+  let cmsPatched = 0;
+  let cmsAnchors = 0;
   await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
   let rewrittenAssets = 0;
@@ -405,7 +457,15 @@ async function main() {
     const src = `.work/raw-assets/${local}`;
     if (TEXT_EXT.has(ext)) {
       const text = await readFile(src, 'utf8');
-      const next = rewriteText(text);
+      let next = rewriteText(text);
+      // Одна и та же функция вкомпилирована в несколько чанков под разными
+      // минифицированными именами, поэтому патчим каждый, где она встретилась.
+      if (next.includes('Unexpected response length')) cmsAnchors++;
+      const cms = patchCmsRangeLoader(next);
+      if (cms.patched) {
+        next = cms.text;
+        cmsPatched++;
+      }
       if (next !== text) rewrittenAssets++;
       await writeFileDeep(`${OUT}/${local}`, next);
     } else {
@@ -414,6 +474,15 @@ async function main() {
     void url;
   }
   console.log(`   ресурсов записано: ${mapping.size}, из них с правкой ссылок: ${rewrittenAssets}`);
+  // Без этой правки клиентская навигация по страницам с CMS ломается наглухо,
+  // поэтому молча пропустить её нельзя: лучше не собрать копию вовсе.
+  if (cmsAnchors === 0 || cmsPatched !== cmsAnchors) {
+    throw new Error(
+      `загрузчик диапазонов CMS: найден в ${cmsAnchors} чанках, пропатчен в ${cmsPatched} — ` +
+        'разметка изменилась, проверьте patchCmsRangeLoader',
+    );
+  }
+  console.log(`   загрузчик диапазонов CMS переписан на клиентскую нарезку (${cmsPatched} чанка)`);
 
   await writeFileDeep(`${OUT}/assets/js/editor-bar-stub.mjs`, EDITOR_BAR_STUB);
 

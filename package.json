@@ -14,7 +14,9 @@
     "check:links": "node tools/check-links.mjs",
     "check:seo": "node tools/check-seo.mjs",
     "thumbs": "node tools/thumbs.mjs",
-    "report": "node tools/report.mjs"
+    "report": "node tools/report.mjs",
+    "check:nginx": "node tools/check-nginx.mjs",
+    "check:nav": "node tools/check-nav.mjs"
   },
   "devDependencies": {
     "pixelmatch": "^7.2.0",
