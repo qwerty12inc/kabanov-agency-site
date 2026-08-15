@@ -12,7 +12,9 @@
     "shots": "node tools/shots.mjs",
     "precompress": "node tools/precompress.mjs",
     "check:links": "node tools/check-links.mjs",
-    "check:seo": "node tools/check-seo.mjs"
+    "check:seo": "node tools/check-seo.mjs",
+    "thumbs": "node tools/thumbs.mjs",
+    "report": "node tools/report.mjs"
   },
   "devDependencies": {
     "pixelmatch": "^7.2.0",
