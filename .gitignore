@@ -1,3 +1,6 @@
 .work/
 node_modules/
 shots/
+# Производные файлы сжатия: создаются `npm run precompress` перед деплоем.
+site/**/*.gz
+site/**/*.br

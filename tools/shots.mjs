@@ -62,12 +62,40 @@ async function settle(page, maxSteps = 80) {
   await page.waitForTimeout(700);
 }
 
+/**
+ * Плееры Vimeo в iframe грузятся дольше самой страницы. Если снять кадр раньше,
+ * на одной стороне окажется плеер, а на другой — пустое место, и сравнение
+ * покажет расхождение в 2-3% там, где копия ни при чём (наблюдалось в обе
+ * стороны: и живой без плеера, и копия без плеера).
+ */
+async function waitForVimeo(page, timeout = 20000) {
+  const deadline = Date.now() + timeout;
+  // Сначала дать iframe'ам появиться в DOM.
+  while (Date.now() < deadline) {
+    if (page.frames().some((f) => /player\.vimeo\.com/.test(f.url()))) break;
+    await page.waitForTimeout(300);
+  }
+  const frames = page.frames().filter((f) => /player\.vimeo\.com/.test(f.url()));
+  if (!frames.length) return 0;
+  // Затем дождаться, пока внутри отрисуется постер или само видео.
+  await Promise.all(
+    frames.map((f) =>
+      f.waitForSelector('video, .vp-video, .vp-preview, [class*=poster]', {
+        timeout: Math.max(1000, deadline - Date.now()),
+      }).catch(() => {}),
+    ),
+  );
+  await page.waitForTimeout(2000);
+  return frames.length;
+}
+
 async function shoot(page, url, file) {
   // networkidle как условие goto не годится: на страницах с зацикленным видео
   // сеть не затихает никогда, и ожидание всегда упирается в таймаут.
   await page.goto(url, { waitUntil: 'load', timeout: 60000 });
   await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
   await settle(page);
+  await waitForVimeo(page);
   await page.screenshot({ path: file, fullPage: true, animations: 'disabled', caret: 'hide' });
 }
 
