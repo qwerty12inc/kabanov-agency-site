@@ -11,11 +11,21 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { appendFileSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { PROFILE, profileOpts } from './lib.mjs';
+import { PROFILE, profileOpts, ownHosts, launchOpts } from './lib.mjs';
+
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
+const LOCAL_HOSTS = ownHosts(BASE);
+
+// Файлы прогона помечаем адресом, по которому он шёл. Иначе проверка боевого
+// сервера «доделала» бы недоделанный локальный прогон и смешала бы результаты
+// двух разных мишеней в одном отчёте. У локального адреса пометки нет — имена
+// файлов остаются прежними, на них смотрит report.mjs.
+const HOST = new URL(BASE).hostname;
+const TAG = /^(127\.0\.0\.1|localhost)$/.test(HOST) ? PROFILE : `${PROFILE}-${HOST}`;
 
 // Прогон возобновляемый: результат каждой страницы дописывается сюда сразу.
 // Если процесс убьют на середине, повторный запуск доделает остаток.
-const ROWS = `.work/audit-rows-${PROFILE}.jsonl`;
+const ROWS = `.work/audit-rows-${TAG}.jsonl`;
 const loadRows = () =>
   existsSync(ROWS)
     ? readFileSync(ROWS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
@@ -23,15 +33,11 @@ const loadRows = () =>
 
 // stdout при перенаправлении в файл буферизуется поблочно, поэтому прогресс
 // пишем отдельно синхронно — иначе за долгим прогоном нельзя следить.
-const PROGRESS = `.work/audit-progress-${PROFILE}.log`;
+const PROGRESS = `.work/audit-progress-${TAG}.log`;
 const note = (line) => {
   appendFileSync(PROGRESS, `${new Date().toISOString().slice(11, 19)}  ${line}\n`);
   console.log(line);
 };
-
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
-const CHROME = '/opt/pw-browsers/chromium';
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 
 /**
  * Осознанно оставленное исключение: на 26 страницах стоят плееры Vimeo,
@@ -97,11 +103,9 @@ async function main() {
   // один оборванный запрос вместо полного набора, который увидит настоящий посетитель.
   // ssl-version-max — обход прокси песочницы, рвущего TLS-рукопожатие Chromium.
   if (todo.length) {
-    const browser = await chromium.launch({
-      executablePath: CHROME,
-      proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
+    const browser = await chromium.launch(launchOpts({
       args: ['--disable-features=PostQuantumKyber,EncryptedClientHello,TLS13EarlyData', '--ssl-version-max=tls1.2'],
-    });
+    }));
     const ctx = await browser.newContext(profileOpts());
 
     for (const [i, path] of todo.entries()) {
@@ -172,7 +176,7 @@ async function main() {
     consoleErrors,
     results,
   };
-  await writeFile(`.work/audit-report-${PROFILE}.json`, JSON.stringify(report, null, 2));
+  await writeFile(`.work/audit-report-${TAG}.json`, JSON.stringify(report, null, 2));
 
   console.log(`\nстраниц пройдено: ${rows.length}/${paths.length} (+ переход в соседнюю локаль на каждой)`);
   console.log(`сетевых запросов всего: ${totalRequests}`);

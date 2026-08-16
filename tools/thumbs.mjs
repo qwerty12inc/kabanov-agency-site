@@ -5,7 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { PROFILE } from './lib.mjs';
+import { PROFILE, launchOpts } from './lib.mjs';
 
 const WIDTH = Number(process.env.WIDTH || 320);
 const QUALITY = Number(process.env.QUALITY || 0.55);
@@ -38,7 +38,7 @@ const manifest = JSON.parse(await readFile('.work/manifest.json', 'utf8'));
 const shots = JSON.parse(await readFile(`.work/shots-report-${PROFILE}.json`, 'utf8'));
 const percentOf = new Map(shots.rows.map((r) => [r.path, r.percent]));
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const browser = await chromium.launch(launchOpts());
 const page = await browser.newPage();
 await page.goto(`http://127.0.0.1:${PORT}/`);
 

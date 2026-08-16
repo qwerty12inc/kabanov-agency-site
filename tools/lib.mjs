@@ -1,5 +1,6 @@
 // Общие утилиты для всех шагов снятия копии.
 import { mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export const ORIGIN = 'https://kabanov.agency';
@@ -40,6 +41,41 @@ export function profileOpts() {
   const p = PROFILES[PROFILE];
   if (!p) throw new Error(`неизвестный профиль «${PROFILE}», ожидался один из: ${Object.keys(PROFILES).join(', ')}`);
   return p;
+}
+
+/**
+ * Хосты, которые для аудита считаются «своими» — то есть тем сервером, который
+ * отдаёт копию. Локальная проверка и проверка боевого адреса здесь равноправны:
+ * при `BASE_URL=https://kabanov.agency` без этого весь сайт попал бы в графу
+ * «неожиданные внешние запросы», а счётчик 4xx/5xx остался бы вечным нулём —
+ * проверка отчиталась бы «ошибок нет» даже если каждая страница отдаёт 500.
+ */
+export function ownHosts(base) {
+  const hosts = new Set(['127.0.0.1', 'localhost']);
+  try {
+    hosts.add(new URL(base).hostname);
+  } catch {
+    throw new Error(`BASE_URL не разбирается как адрес: «${base}»`);
+  }
+  return hosts;
+}
+
+/**
+ * Параметры запуска Chromium. И путь к браузеру, и прокси — свойства машины, а
+ * не проекта: в песочнице, где снималась копия, Chromium лежал в /opt, а наружу
+ * можно было только через HTTPS_PROXY; на обычной машине нет ни того, ни другого,
+ * и Playwright находит свой браузер сам. Поэтому подставляем оба параметра, только
+ * если они действительно есть, — иначе запуск падает на несуществующем файле или
+ * на `proxy.server: undefined`.
+ */
+export function launchOpts(extra = {}) {
+  const opts = { ...extra };
+  const chrome = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium';
+  if (existsSync(chrome)) opts.executablePath = chrome;
+  if (process.env.HTTPS_PROXY) {
+    opts.proxy = { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' };
+  }
+  return opts;
 }
 
 const UA =

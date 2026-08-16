@@ -7,13 +7,12 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { appendFileSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { PROFILE, profileOpts } from './lib.mjs';
+import { PROFILE, profileOpts, launchOpts } from './lib.mjs';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 
 const LOCAL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const LIVE = 'https://kabanov.agency';
-const CHROME = '/opt/pw-browsers/chromium';
 const OUT = `shots/${PROFILE}`;
 const THRESHOLD = Number(process.env.THRESHOLD || 2); // % расхождения для попадания в отчёт
 
@@ -165,11 +164,7 @@ async function main() {
     // Локальному браузеру даём тот же выход в сеть, что и «живому». На 26 страницах
     // стоят плееры Vimeo; без доступа наружу они отрисовались бы только на живом
     // сайте, и сравнение показало бы расхождение там, где копия ни при чём.
-    const opts = {
-      executablePath: CHROME,
-      proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
-      args: LIVE_ARGS,
-    };
+    const opts = launchOpts({ args: LIVE_ARGS });
     localBrowser = await chromium.launch(opts);
     liveBrowser = await chromium.launch(opts);
     const ctxOpts = { ...profileOpts(), reducedMotion: 'reduce', ignoreHTTPSErrors: true };

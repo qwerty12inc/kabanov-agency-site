@@ -9,10 +9,10 @@
 // Сравниваем результат перехода с прямой загрузкой той же страницы: содержимое
 // должно совпасть, консоль — молчать.
 import { chromium } from 'playwright';
-import { PROFILE, profileOpts } from './lib.mjs';
+import { PROFILE, profileOpts, ownHosts, launchOpts } from './lib.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
-const CHROME = '/opt/pw-browsers/chromium';
+const OWN_HOSTS = ownHosts(BASE);
 
 // Откуда начинаем переход. Ссылку ищем в самой странице, а не по заранее
 // записанному селектору: разметка Framer строит href относительными и они
@@ -49,11 +49,9 @@ const snapshot = (page) =>
   }));
 
 async function main() {
-  const browser = await chromium.launch({
-    executablePath: CHROME,
-    proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' },
+  const browser = await chromium.launch(launchOpts({
     args: ['--disable-features=PostQuantumKyber,EncryptedClientHello,TLS13EarlyData', '--ssl-version-max=tls1.2'],
-  });
+  }));
   const ctx = await browser.newContext(profileOpts());
 
   let failed = 0;
@@ -74,7 +72,7 @@ async function main() {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message.slice(0, 100)}`));
     page.on('response', (r) => {
       const u = new URL(r.url());
-      if ((u.hostname === '127.0.0.1' || u.hostname === 'localhost') && r.status() >= 400) {
+      if (OWN_HOSTS.has(u.hostname) && r.status() >= 400) {
         errors.push(`${r.status()} ${u.pathname}`);
       }
     });
