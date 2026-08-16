@@ -1,0 +1,258 @@
+# Развёртывание kabanov.agency — единая инструкция
+
+Файл рассчитан и на человека, и на агента в терминале. Все команды выполняются
+из корня репозитория.
+
+---
+
+## Что разворачиваем
+
+Статическая копия сайта, снятая с Framer: 83 страницы, 225 файлов ресурсов,
+92 МБ. Серверной логики нет — нужен только nginx, отдающий файлы.
+
+| | |
+|---|---|
+| Провайдер | Yandex Cloud, зона `ru-central1-d` |
+| Машина | `kabanov-agency-web` (`fv4ebjfsq864e88sq5h8`) |
+| Публичный IP | `158.160.179.74`, статический |
+| ОС | Ubuntu 24.04 LTS, nginx 1.24 |
+| Ресурсы | 2 vCPU (доля 5%), 1 ГБ RAM, 10 ГБ SSD |
+| Пользователь | `deploy`, вход по ключу |
+| Домен | `kabanov.agency`, DNS у стороннего регистратора |
+| Корень сайта на сервере | `/var/www/kabanov.agency` |
+
+---
+
+## Правила выполнения
+
+Соблюдать буквально — здесь боевой сервер и живой домен.
+
+1. **Останавливаться на шагах, помеченных `⛔ СТОП`**, и ждать явного
+   подтверждения человека. Их два: перед переключением DNS и перед выпуском
+   сертификата.
+2. **Проверять результат каждого шага** и не переходить к следующему, если
+   ожидаемый вывод не совпал. Лучше остановиться и спросить, чем чинить наугад.
+3. **Не сочинять конфигурацию.** Все конфиги лежат в `deploy/` и проверены
+   автотестом на настоящем nginx. Если что-то не работает — сообщить, а не
+   править конфиг «по смыслу».
+4. **Не запускать `certbot` повторно при ошибке.** У Let's Encrypt есть лимит
+   на неудачные проверки; выяснить причину и только потом пробовать снова.
+5. **Не менять ничего в консоли Yandex Cloud** — только сервер по SSH.
+6. Не выводить в чат содержимое приватных ключей.
+
+---
+
+## Предусловия
+
+```bash
+node --version                    # нужен Node 18+, только для сжатия
+ssh kabanov-web 'echo ok'         # должно вывести ok
+```
+
+Если алиас не настроен, добавьте в `~/.ssh/config`:
+
+```
+Host kabanov-web
+    HostName 158.160.179.74
+    User deploy
+    IdentityFile ~/.ssh/id_ed25519_kabanov_web
+    IdentitiesOnly yes
+```
+
+---
+
+## Шаг 1. Локальная сборка
+
+```bash
+git pull
+node tools/precompress.mjs
+```
+
+Ожидается примерно: `сжато файлов: 127`, `исходно: 21.9 МБ → gzip 3.4 МБ → brotli 2.3 МБ`.
+
+Сжимаем локально, а не на сервере: там гарантированная доля процессора 5%,
+brotli считался бы очень долго. `npm install` для этого не нужен — скрипт
+использует только встроенный `node:zlib`.
+
+Проверка целостности перед отправкой:
+
+```bash
+npm run check:links               # битых ссылок должно быть 0
+```
+
+## Шаг 2. Пакеты и каталоги на сервере
+
+```bash
+ssh kabanov-web 'sudo apt-get update -qq && sudo apt-get install -y nginx certbot'
+ssh kabanov-web 'nginx -v'
+```
+
+Ожидается `nginx/1.24.x`. Если версия другая — остановиться и сообщить:
+конфиг рассчитан на 1.24, на 1.25+ директива `listen ... http2` устарела.
+
+```bash
+ssh kabanov-web 'sudo mkdir -p /var/www/kabanov.agency /var/www/certbot && \
+                 sudo chown -R deploy:deploy /var/www/kabanov.agency /var/www/certbot'
+```
+
+## Шаг 3. Заливка
+
+```bash
+rsync -avz --delete site/ kabanov-web:/var/www/kabanov.agency/
+rsync -avz deploy/ kabanov-web:~/deploy/
+```
+
+Около 98 МБ, одна-две минуты. Проверка, что долетело:
+
+```bash
+ssh kabanov-web 'find /var/www/kabanov.agency -name "*.html" | wc -l'   # 83
+ssh kabanov-web 'ls /var/www/kabanov.agency/assets/js/*.gz | wc -l'     # 45
+```
+
+## Шаг 4. Временный конфиг и проверка по HTTP
+
+Боевой конфиг не стартует без файлов сертификата, а сертификат не получить,
+пока сервер не отвечает по HTTP. Поэтому сначала промежуточный конфиг — только
+HTTP, без редиректов и канонизации.
+
+```bash
+ssh kabanov-web 'sudo cp ~/deploy/nginx-bootstrap.conf /etc/nginx/sites-available/kabanov.agency && \
+                 sudo ln -sf /etc/nginx/sites-available/kabanov.agency /etc/nginx/sites-enabled/ && \
+                 sudo rm -f /etc/nginx/sites-enabled/default && \
+                 sudo nginx -t && sudo systemctl reload nginx'
+```
+
+Проверка снаружи. Заголовок `Host` обязателен: конфиг привязан к имени домена,
+а обращаемся по адресу.
+
+```bash
+curl -sI -H 'Host: kabanov.agency' http://158.160.179.74/ | head -1
+```
+
+Ожидается `HTTP/1.1 200 OK`. Если нет — дальше не идти.
+
+## ⛔ СТОП 1. Переключение DNS
+
+**Требуется подтверждение человека.** Агент этот шаг не выполняет: DNS у
+стороннего регистратора.
+
+Что нужно сделать вручную: A-записи `kabanov.agency` и `www.kabanov.agency`
+направить на `158.160.179.74`.
+
+Момент необратимый в одну сторону: как только записи разойдутся, домен
+перестанет показывать сайт на Framer и начнёт показывать копию. Откат —
+вернуть прежние записи, пока подписка Framer ещё активна.
+
+Дожидаться распространения:
+
+```bash
+dig +short kabanov.agency         # должен вернуться 158.160.179.74
+dig +short www.kabanov.agency     # то же самое
+```
+
+Пока оба не вернут нужный адрес — к следующему шагу не переходить.
+
+## ⛔ СТОП 2. Выпуск сертификата
+
+**Требуется подтверждение человека.** У Let's Encrypt лимит на неудачные
+проверки, поэтому запускаем один раз и осознанно.
+
+```bash
+ssh kabanov-web 'sudo certbot certonly --webroot -w /var/www/certbot \
+  -d kabanov.agency -d www.kabanov.agency \
+  --agree-tos -m info@kdagency.ru --no-eff-email --non-interactive'
+```
+
+Проверка:
+
+```bash
+ssh kabanov-web 'sudo ls /etc/letsencrypt/live/kabanov.agency/'
+```
+
+Ожидаются `fullchain.pem` и `privkey.pem`. При ошибке — не повторять запуск,
+разобраться в причине (чаще всего DNS ещё не разошёлся или закрыт порт 80).
+
+## Шаг 5. Боевой конфиг
+
+```bash
+ssh kabanov-web 'sudo cp ~/deploy/locations.conf /etc/nginx/kabanov-locations.conf && \
+                 sudo cp ~/deploy/nginx.conf /etc/nginx/sites-available/kabanov.agency && \
+                 sudo nginx -t && sudo systemctl reload nginx'
+```
+
+`nginx -t` обязателен: он поймает и опечатку, и отсутствующий сертификат.
+Если тест не прошёл — вернуть временный конфиг и сообщить:
+
+```bash
+ssh kabanov-web 'sudo cp ~/deploy/nginx-bootstrap.conf /etc/nginx/sites-available/kabanov.agency && \
+                 sudo nginx -t && sudo systemctl reload nginx'
+```
+
+## Шаг 6. Проверка
+
+```bash
+curl -sI https://kabanov.agency/            | head -1   # 200
+curl -sI https://kabanov.agency/projects/   | grep -i '^location'   # → /projects, без слэша
+curl -sI https://kabanov.agency/en          | grep -i '^location'   # → /en/, со слэшем
+curl -sI http://kabanov.agency/             | grep -i '^location'   # → https://
+curl -sI https://kabanov.agency/nope        | head -1   # 404
+curl -sI https://kabanov.agency/assets/js/framer.KNQD3WMr.mjs | grep -i content-type
+```
+
+Последняя строка — **самая важная**. Должно быть `text/javascript`. Если там
+`application/octet-stream`, значит подхватился не тот конфиг: браузер откажется
+исполнять модули, страницы отрисуются, но останутся неживыми — без гидратации и
+клиентской навигации.
+
+Полный прогон по боевому адресу (нужен `npm install`, тянет Playwright):
+
+```bash
+BASE_URL=https://kabanov.agency npm run audit
+BASE_URL=https://kabanov.agency npm run check:nav
+```
+
+Ожидается: 82/82 страниц, неожиданных внешних запросов 0, локальных 4xx/5xx 0,
+клиентская навигация без сбоев. Запросы к `vimeo.com` и его поддоменам —
+разрешённое исключение, плееры оставлены намеренно.
+
+## Шаг 7. Сузить доступ по SSH
+
+Порт 22 открыт всему интернету. Узнать свой адрес и заменить источник в правиле
+группы безопасности `kabanov-agency-web-sg` в консоли Yandex Cloud:
+
+```bash
+curl -s ifconfig.me
+```
+
+Делается вручную в консоли — агент туда не ходит.
+
+---
+
+## Обновление сайта потом
+
+```bash
+git pull
+node tools/precompress.mjs
+rsync -avz --delete site/ kabanov-web:/var/www/kabanov.agency/
+```
+
+Перезагружать nginx не нужно, он читает файлы с диска. Имена файлов в `/assets`
+содержат хеш сборки и помечены `immutable` на год: при изменениях появляются
+новые имена, старые просто перестают запрашиваться. HTML помечен
+`must-revalidate` и подхватывается сразу.
+
+## Если что-то пошло не так
+
+| Симптом | Причина | Что делать |
+|---|---|---|
+| `nginx -t` ругается на сертификат | боевой конфиг включён до выпуска | вернуть `nginx-bootstrap.conf` |
+| Страницы открываются, но не «живые» | `.mjs` отдаётся как `octet-stream` | проверить, что `kabanov-locations.conf` на месте и подключён |
+| certbot не проходит проверку | DNS не разошёлся или закрыт порт 80 | проверить `dig` и группу безопасности, **не повторять вслепую** |
+| 404 на всех страницах | не совпал корень | проверить `root` в конфиге и что файлы залиты |
+| Сайт недоступен целиком | откат | вернуть A-записи на Framer, пока подписка активна |
+
+## Что дальше, отдельным этапом
+
+CDN для быстрой отдачи из-за рубежа — промпт в `deploy/yandex-cloud-console.md`,
+раздел «Этап 3». Запускать только после того, как всё выше проверено: CDN
+кэширует то, что отдаёт сервер, и на неготовом источнике закэширует ошибки.
