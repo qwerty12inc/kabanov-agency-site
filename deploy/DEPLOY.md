@@ -125,12 +125,20 @@ rsync -avz deploy/ kabanov-web:~/deploy/
 ssh kabanov-web 'du -sh /var/www/kabanov.agency'
 ```
 
-Проверка, что долетело:
+Проверка, что долетело. Первые две команды сравнивают общее число файлов
+локально и на сервере — они должны совпасть, и это надёжнее сверки с
+записанным числом, которое устаревает при любом изменении сайта:
 
 ```bash
+find site -type f | wc -l
+ssh kabanov-web 'find /var/www/kabanov.agency -type f | wc -l'
 ssh kabanov-web 'find /var/www/kabanov.agency -name "*.html" | wc -l'   # 83
-ssh kabanov-web 'ls /var/www/kabanov.agency/assets/js/*.gz | wc -l'     # 45
 ```
+
+Отдельно про сжатые копии: `.gz` рядом с `.mjs` заметно меньше, чем самих
+`.mjs` — в `assets/js` это 34 против 46. Так и задумано: `precompress.mjs`
+пропускает файлы мельче 1024 байт, на них gzip не даёт выигрыша, а накладные
+расходы съедают всё. Двенадцать мелких чанков отдаются несжатыми.
 
 ## Шаг 4. Временный конфиг и проверка по HTTP
 
