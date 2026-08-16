@@ -105,12 +105,13 @@ http {
       const res = await fetch(base + path, { redirect: 'manual' });
       const loc = res.headers.get('location');
       const locPath = loc ? new URL(loc, base).pathname : null;
-      const ok = res.status === wantStatus && (wantLocation === null || locPath === wantLocation);
+      const schemeOk = !loc || loc.startsWith('https://');
+      const ok = res.status === wantStatus && (wantLocation === null || locPath === wantLocation) && schemeOk;
       if (!ok) failed++;
       console.log(
         `  ${ok ? '✓' : '✗'} ${name.padEnd(34)} ${path.padEnd(30)} ${res.status}` +
           (locPath ? ` → ${locPath}` : '') +
-          (ok ? '' : `   ОЖИДАЛОСЬ ${wantStatus}${wantLocation ? ` → ${wantLocation}` : ''}`),
+          (ok ? '' : `   ОЖИДАЛОСЬ ${wantStatus}${wantLocation ? ` → ${wantLocation}` : ''}${schemeOk ? '' : ' (схема не https!)'}`),
       );
     }
 
@@ -131,6 +132,18 @@ http {
     const gzOk = enc === 'gzip';
     if (!gzOk) failed++;
     console.log(`  ${gzOk ? '✓' : '✗'} предсжатый gzip отдаётся${' '.repeat(11)}content-encoding: ${enc || '(нет)'}`);
+
+    // Запрос «из-за CDN»: TLS терминирован снаружи, к серверу пришли по http.
+    // Редирект всё равно обязан вести на https, иначе посетитель получит лишний
+    // хоп, а при агрессивной настройке CDN — петлю.
+    const viaCdn = await fetch(`${base}/projects/`, {
+      redirect: 'manual',
+      headers: { 'x-forwarded-proto': 'https' },
+    });
+    const cdnLoc = viaCdn.headers.get('location') || '';
+    const cdnOk = viaCdn.status === 301 && cdnLoc.startsWith('https://');
+    if (!cdnOk) failed++;
+    console.log(`  ${cdnOk ? '✓' : '✗'} редирект за CDN ведёт на https${' '.repeat(7)}${viaCdn.status} → ${cdnLoc || '(нет)'}`);
 
     // 404 должна отдавать саму страницу, а не пустой ответ.
     const nf = await fetch(`${base}/nope`);
