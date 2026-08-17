@@ -40,16 +40,21 @@ const note = (line) => {
 };
 
 /**
- * Осознанно оставленное исключение: на 26 страницах стоят плееры Vimeo,
- * решено сохранить их как есть. Всё, что вне этого списка, — дефект копии.
+ * Осознанно оставленные исключения. Всё, что вне этого списка, — дефект копии.
  *
+ * Первое: на 26 страницах стоят плееры Vimeo, решено сохранить их как есть.
  * Помимо самого Vimeo сюда входит то, что грузит уже его iframe изнутри:
  * gstatic — кнопка Chromecast, challenges.cloudflare.com — антибот Turnstile,
  * datadoghq — телеметрия плеера. Проверено: все они встречаются исключительно
  * на тех же 26 страницах и ни на одной другой.
+ *
+ * Второе: Google Analytics — свой счётчик владельца сайта, возвращён по его
+ * просьбе уже после снятия копии (см. tools/fixes.mjs). Этот, в отличие от
+ * плееров, стоит на всех страницах: если он вдруг встретится не везде — значит
+ * шаг правок отработал не до конца.
  */
 const ALLOWED_EXTERNAL =
-  /(^|\.)(vimeo\.com|vimeocdn\.com|gstatic\.com|challenges\.cloudflare\.com|browser-intake-datadoghq\.com)$/;
+  /(^|\.)(vimeo\.com|vimeocdn\.com|gstatic\.com|challenges\.cloudflare\.com|browser-intake-datadoghq\.com|googletagmanager\.com|google-analytics\.com|analytics\.google\.com)$/;
 
 /** RU-путь ↔ EN-путь. RU живёт в корне, EN — под /en. Учитываем и `/en` без слэша. */
 const alternateOf = (p) => {

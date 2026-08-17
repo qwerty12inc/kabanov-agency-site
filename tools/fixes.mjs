@@ -66,7 +66,38 @@ html .framer-ank9ug h5.framer-text{--framer-text-alignment:center!important}
 }`,
 };
 
-const FIXES = [NEXT_PROJECT_OVERFLOW];
+/**
+ * Правка 2. Google Analytics.
+ *
+ * При снятии копии вся аналитика вырезалась намеренно: чужие счётчики в
+ * автономной копии — это утечка данных туда, куда владелец сайта уже не
+ * заглядывает. Свой счётчик возвращаем осознанно и по просьбе владельца.
+ *
+ * Единственная тонкость — клиентская навигация. Framer при переходе по
+ * внутренней ссылке не перезагружает страницу, а меняет адрес через
+ * History API. Обычный счётчик засчитал бы только первую страницу за визит.
+ * GA4 такие переходы умеет ловить сам: в «расширенной статистике» есть пункт
+ * «Изменения страницы на основе событий истории браузера», и он включён по
+ * умолчанию. Поэтому своего обработчика мы НЕ добавляем — он дал бы двойной
+ * счёт вместе со встроенным.
+ *
+ * Проверено на живой копии: при клике по внутренней ссылке уходит второй
+ * page_view с новым адресом. Если счётчик вдруг перестанет считать переходы —
+ * смотреть в GA4: Администратор → Потоки данных → Расширенная статистика.
+ */
+const GOOGLE_ANALYTICS = {
+  name: 'счётчик Google Analytics',
+  needle: '</head>', // ставим на все страницы без исключения
+  html: `<script async src="https://www.googletagmanager.com/gtag/js?id=G-S4XYP0N8G7"></script>
+<script>
+window.dataLayer=window.dataLayer||[];
+function gtag(){dataLayer.push(arguments)}
+gtag('js',new Date());
+gtag('config','G-S4XYP0N8G7');
+</script>`,
+};
+
+const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS];
 
 async function* htmlFiles(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -94,15 +125,22 @@ async function main() {
       html = html.slice(0, from) + html.slice(to + MARK_CLOSE.length);
     }
 
-    const parts = [];
+    // Стили собираем в один <style>, разметку вставляем как есть. Порядок
+    // внутри блока — как в FIXES.
+    const css = [];
+    const markup = [];
     for (const fix of FIXES) {
       if (!html.includes(fix.needle)) continue;
-      parts.push(`/* ${fix.name} */\n${fix.css}`);
+      if (fix.css) css.push(`/* ${fix.name} */\n${fix.css}`);
+      if (fix.html) markup.push(`<!-- ${fix.name} -->\n${fix.html}`);
       applied.set(fix.name, applied.get(fix.name) + 1);
     }
 
-    if (parts.length) {
-      const block = `${MARK_OPEN}<style>\n${parts.join('\n')}\n</style>${MARK_CLOSE}`;
+    if (css.length || markup.length) {
+      const parts = [];
+      if (css.length) parts.push(`<style>\n${css.join('\n')}\n</style>`);
+      if (markup.length) parts.push(markup.join('\n'));
+      const block = `${MARK_OPEN}\n${parts.join('\n')}\n${MARK_CLOSE}`;
       // Ставим перед </head>: правка должна быть позже стилей Framer, иначе
       // при равной специфичности выиграет он.
       const head = html.lastIndexOf('</head>');
