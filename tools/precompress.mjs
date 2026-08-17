@@ -1,6 +1,7 @@
 // Готовит .gz и .br рядом с текстовыми файлами, чтобы nginx отдавал их
 // через gzip_static/brotli_static без траты CPU на каждый запрос.
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
+import { readdir, readFile, writeFile, stat, unlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { gzip, brotliCompress, constants } from 'node:zlib';
 import { promisify } from 'node:util';
@@ -45,7 +46,36 @@ for await (const file of walk(ROOT)) {
   brTotal += b.length;
 }
 
+/**
+ * Уборка осиротевших архивов — тех `.gz`/`.br`, у которых больше нет исходника.
+ *
+ * Появляются они при переименовании файлов и живут незаметно: `.gz` и `.br`
+ * перечислены в `.gitignore`, поэтому переименование, пришедшее через git, их
+ * не трогает — на каждой машине остаётся свой набор под старыми именами.
+ * Дальше `rsync --delete` сверяется с локальным каталогом, сироту там находит
+ * и вместо удаления заливает на сервер.
+ *
+ * Последствие не косметическое. `gzip_static` отдаёт `.gz` в ответ на запрос
+ * исходного имени, даже когда самого исходника рядом уже нет. То есть старое
+ * имя продолжает возвращать 200 любому браузеру, поддерживающему gzip, —
+ * переименование как будто и не случалось.
+ *
+ * Нашли это не мы: агент на заливке заметил, что `--delete` собирается удалить
+ * 10 файлов вместо 14, и раскопал причину. Здесь она закрыта на будущее.
+ */
+let orphans = 0;
+for await (const file of walk(ROOT)) {
+  const ext = extname(file).toLowerCase();
+  if (ext !== '.gz' && ext !== '.br') continue;
+  const source = file.slice(0, -ext.length);
+  if (existsSync(source)) continue;
+  await unlink(file);
+  orphans++;
+  console.log(`  удалён архив без исходника: ${file}`);
+}
+
 const mb = (n) => (n / 1e6).toFixed(1);
+if (orphans) console.log(`архивов-сирот удалено: ${orphans}`);
 console.log(`сжато файлов: ${files}`);
 console.log(`исходно: ${mb(rawTotal)} МБ → gzip ${mb(gzTotal)} МБ → brotli ${mb(brTotal)} МБ`);
 console.log(`экономия brotli: ${(100 - (brTotal / rawTotal) * 100).toFixed(1)}%`);
