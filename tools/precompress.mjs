@@ -24,15 +24,43 @@ async function* walk(dir) {
   }
 }
 
+/**
+ * Нужно ли пересжимать. Оба архива должны существовать и быть не старше
+ * исходника — иначе делаем заново.
+ *
+ * Смысл не в экономии времени на сжатии, а в трафике заливки: `rsync` считает
+ * файл изменившимся по размеру и времени правки, поэтому пересозданный архив с
+ * тем же содержимым он всё равно отправит целиком. При 254 архивах это лишние
+ * мегабайты на каждое обновление, даже если поменялась одна страница.
+ *
+ * Время правки — не самый строгий признак, но здесь достаточный: исходники
+ * появляются либо из `git pull`, либо из шагов сборки, и оба ставят свежее
+ * время. Если возникнут сомнения, полное пересжатие возвращается удалением
+ * архивов: `find site -name '*.gz' -o -name '*.br' | xargs rm`.
+ */
+async function upToDate(file, mtimeMs) {
+  for (const ext of ['.gz', '.br']) {
+    if (!existsSync(file + ext)) return false;
+    const s = await stat(file + ext);
+    if (s.mtimeMs < mtimeMs) return false;
+  }
+  return true;
+}
+
 let files = 0;
+let skipped = 0;
 let rawTotal = 0;
 let gzTotal = 0;
 let brTotal = 0;
 
 for await (const file of walk(ROOT)) {
   if (!EXT.has(extname(file).toLowerCase())) continue;
-  const { size } = await stat(file);
+  const { size, mtimeMs } = await stat(file);
   if (size < MIN) continue;
+  if (await upToDate(file, mtimeMs)) {
+    skipped++;
+    continue;
+  }
   const buf = await readFile(file);
   const [g, b] = await Promise.all([
     gz(buf, { level: 9 }),
@@ -76,6 +104,10 @@ for await (const file of walk(ROOT)) {
 
 const mb = (n) => (n / 1e6).toFixed(1);
 if (orphans) console.log(`архивов-сирот удалено: ${orphans}`);
-console.log(`сжато файлов: ${files}`);
-console.log(`исходно: ${mb(rawTotal)} МБ → gzip ${mb(gzTotal)} МБ → brotli ${mb(brTotal)} МБ`);
-console.log(`экономия brotli: ${(100 - (brTotal / rawTotal) * 100).toFixed(1)}%`);
+console.log(`сжато файлов: ${files}${skipped ? `, пропущено без изменений: ${skipped}` : ''}`);
+if (files) {
+  console.log(`исходно: ${mb(rawTotal)} МБ → gzip ${mb(gzTotal)} МБ → brotli ${mb(brTotal)} МБ`);
+  console.log(`экономия brotli: ${(100 - (brTotal / rawTotal) * 100).toFixed(1)}%`);
+} else {
+  console.log('всё уже сжато — пересобирать нечего');
+}
