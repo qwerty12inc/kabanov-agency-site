@@ -8,6 +8,7 @@
     "crawl": "node tools/crawl.mjs",
     "assets": "node tools/assets.mjs",
     "fixes": "node tools/fixes.mjs",
+    "debrand": "node tools/debrand.mjs",
     "serve": "node tools/serve.mjs",
     "audit": "node tools/audit.mjs",
     "shots": "node tools/shots.mjs",

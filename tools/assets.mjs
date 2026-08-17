@@ -115,7 +115,7 @@ function findVendorUrls(text) {
 }
 
 /**
- * Относительные ссылки внутри чанка (`import("./x.mjs")`, `new URL("./y.framercms", …)`).
+ * Относительные ссылки внутри чанка (`import("./x.mjs")`, `new URL("./y.cmsdata", …)`).
  * Часть чанков подключается ТОЛЬКО так — по абсолютным URL их не найти.
  * Резолвим относительно собственного адреса чанка.
  */
@@ -133,7 +133,7 @@ function findRelativeRefs(text, baseUrl) {
     if (!VENDOR_HOSTS.has(resolved.hostname)) return;
     // Данные CMS лежат не рядом с модулем, а в зеркальной ветке /cms/ —
     // рантайм делает ровно эту подмену перед запросом.
-    if (resolved.pathname.endsWith('.framercms')) {
+    if (resolved.pathname.endsWith('.cmsdata')) {
       resolved.pathname = resolved.pathname.replace('/modules/', '/cms/');
     }
     out.add(resolved.toString());

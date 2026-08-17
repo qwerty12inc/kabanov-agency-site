@@ -6,11 +6,25 @@ import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
+import { readdirSync, existsSync } from 'node:fs';
 
 const run = promisify(execFile);
 const PORT = Number(process.env.PORT || 8899);
 const ROOT = resolve('site');
 const DIR = resolve('.work/nginx');
+
+// Имена файлов берём с диска, а не вписываем сюда. Один раз уже обожглись:
+// после переименования ресурсов проверки типов содержимого стали спрашивать
+// несуществующие файлы, получать страницу 404 и падать на «content-type:
+// text/html» — сообщение указывало на конфиг, хотя конфиг был ни при чём.
+const pick = (dir, test) => {
+  const hit = readdirSync(resolve(ROOT, dir)).find(test);
+  if (!hit) throw new Error(`в ${dir} не нашлось подходящего файла для проверки`);
+  return `/${dir}/${hit}`;
+};
+// Нужен именно предсжатый: на нём проверяется отдача gzip_static.
+const JS = pick('assets/js', (f) => f.endsWith('.mjs') && existsSync(resolve(ROOT, 'assets/js', `${f}.gz`)));
+const CSS = pick('assets/vendor', () => true).replace(/\/$/, '') + '/lenis.css';
 
 const CASES = [
   // [метод-описание, путь, ожидаемый статус, ожидаемый Location (или null)]
@@ -31,7 +45,7 @@ const CASES = [
   ['index.html EN-страницы', '/en/projects/index.html', 301, '/en/projects'],
   ['несуществующий путь', '/nope', 404, null],
   ['несуществующий вложенный', '/projects/nope', 404, null],
-  ['ресурс', '/assets/js/framer.KNQD3WMr.mjs', 200, null],
+  ['ресурс', JS, 200, null],
   ['несуществующий ресурс', '/assets/js/nope.mjs', 404, null],
   ['robots.txt', '/robots.txt', 200, null],
   ['sitemap', '/sitemap.xml', 200, null],
@@ -40,16 +54,16 @@ const CASES = [
 ];
 
 const HEADER_CASES = [
-  ['ресурс кэшируется навсегда', '/assets/js/framer.KNQD3WMr.mjs', 'cache-control', /immutable/],
+  ['ресурс кэшируется навсегда', JS, 'cache-control', /immutable/],
   ['шрифт отдаётся с CORS', '/assets/fonts/gstatic-dmsans-rP2Wp2ywxg089UriCZaSExd86J3t9jz86MvyyKK58VXh.woff2', 'access-control-allow-origin', /\*/],
   ['страница не кэшируется', '/', 'cache-control', /must-revalidate/],
   ['страница с nosniff', '/', 'x-content-type-options', /nosniff/],
   ['html как utf-8', '/', 'content-type', /charset=utf-8/],
-  ['mjs как javascript', '/assets/js/framer.KNQD3WMr.mjs', 'content-type', /javascript/],
+  ['mjs как javascript', JS, 'content-type', /javascript/],
   ['woff2 как шрифт', '/assets/fonts/gstatic-dmsans-rP2Wp2ywxg089UriCZaSExd86J3t9jz86MvyyKK58VXh.woff2', 'content-type', /font\/woff2/],
   ['jpg как изображение', '/assets/images/OdBnVMdFnIb8X9qySnm70nzssFk.jpg', 'content-type', /image\/jpeg/],
-  ['css как стиль', '/assets/vendor/lenis-1.3.17-framer/lenis.css', 'content-type', /text\/css/],
-  ['ресурс без двойного Cache-Control', '/assets/js/framer.KNQD3WMr.mjs', 'cache-control', /^public, max-age=31536000, immutable$/],
+  ['css как стиль', CSS, 'content-type', /text\/css/],
+  ['ресурс без двойного Cache-Control', JS, 'cache-control', /^public, max-age=31536000, immutable$/],
 ];
 
 async function main() {
@@ -125,7 +139,7 @@ http {
     }
 
     // Отдача предсжатого .gz вместо исходника.
-    const gz = await fetch(`${base}/assets/js/framer.KNQD3WMr.mjs`, {
+    const gz = await fetch(`${base}${JS}`, {
       headers: { 'accept-encoding': 'gzip' },
     });
     const enc = gz.headers.get('content-encoding');

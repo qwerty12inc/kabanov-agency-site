@@ -52,9 +52,16 @@ const note = (line) => {
  * просьбе уже после снятия копии (см. tools/fixes.mjs). Этот, в отличие от
  * плееров, стоит на всех страницах: если он вдруг встретится не везде — значит
  * шаг правок отработал не до конца.
+ *
+ * Доменов у счётчика больше, чем кажется, и все четыре найдены прогоном, а не
+ * взяты из документации: googletagmanager (сам скрипт), google-analytics и
+ * analytics.google (события) и — неочевидная пара — doubleclick.net вместе с
+ * www.google.com. Последние два появляются, только если в GA4 включены сигналы
+ * Google, то есть сопоставление посетителей с их рекламными профилями. Если это
+ * не нужно, выключается в GA4 и запросы исчезают; сайт от них не зависит.
  */
 const ALLOWED_EXTERNAL =
-  /(^|\.)(vimeo\.com|vimeocdn\.com|gstatic\.com|challenges\.cloudflare\.com|browser-intake-datadoghq\.com|googletagmanager\.com|google-analytics\.com|analytics\.google\.com)$/;
+  /(^|\.)(vimeo\.com|vimeocdn\.com|gstatic\.com|challenges\.cloudflare\.com|browser-intake-datadoghq\.com|googletagmanager\.com|google-analytics\.com|analytics\.google\.com|doubleclick\.net|google\.com)$/;
 
 /** RU-путь ↔ EN-путь. RU живёт в корне, EN — под /en. Учитываем и `/en` без слэша. */
 const alternateOf = (p) => {

@@ -6,7 +6,7 @@
 # отсутствует. Проверен и отлажен запуском вариант на nginx (deploy/nginx.conf +
 # deploy/locations.conf, тест `npm run check:nginx`), его и рекомендую.
 # Про .mjs здесь отдельно заботиться не нужно: у Caddy современная база типов,
-# text/javascript он отдаёт сам. А вот файлы .framercms сжимать нельзя — ниже
+# text/javascript он отдаёт сам. А вот файлы .cmsdata сжимать нельзя — ниже
 # они исключены из encode, иначе рантайм падает на несовпадении длины ответа.
 
 kabanov.agency {
@@ -14,7 +14,7 @@ kabanov.agency {
 
 	# Данные CMS отдаём только как есть: загрузчик сверяет длину ответа
 	# с ожидаемой, а у сжатого файла Content-Length — размер архива.
-	@compressible not path *.framercms
+	@compressible not path *.cmsdata
 	encode @compressible gzip zstd
 
 	# /en → /en/

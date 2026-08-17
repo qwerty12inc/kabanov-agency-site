@@ -9,7 +9,7 @@ const gz = promisify(gzip);
 const br = promisify(brotliCompress);
 
 const ROOT = process.env.ROOT || 'site';
-// .framercms сюда НЕ входит: загрузчик CMS сверяет длину ответа с ожидаемой, а у
+// .cmsdata сюда НЕ входит: загрузчик CMS сверяет длину ответа с ожидаемой, а у
 // предсжатого файла Content-Length — это размер архива. Рантайм падал с
 // «Request failed: Unexpected response length» и выключал интерактивность страницы.
 const EXT = new Set(['.html', '.css', '.js', '.mjs', '.json', '.svg', '.xml', '.txt']);
