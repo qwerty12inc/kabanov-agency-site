@@ -131,7 +131,7 @@ ssh kabanov-web 'sudo mkdir -p /var/www/kabanov.agency /var/www/certbot && \
 ## Шаг 3. Заливка
 
 ```bash
-rsync -avz --delete --info=progress2 --exclude='.DS_Store' site/ kabanov-web:/var/www/kabanov.agency/
+rsync -avz --delete --stats --exclude='.DS_Store' site/ kabanov-web:/var/www/kabanov.agency/
 rsync -avz deploy/ kabanov-web:~/deploy/
 ```
 
@@ -141,8 +141,15 @@ rsync -avz deploy/ kabanov-web:~/deploy/
 При сверке числа файлов локально он остаётся: на сервере будет на один меньше,
 если `.DS_Store` есть в `site/`.
 
-`--info=progress2` показывает единую строку прогресса. Не заворачивайте команду
-в `| tail`: вывод буферизуется, и до самого конца будет казаться, что процесс завис.
+`--stats` в конце печатает итог: сколько файлов передано и сколько ушло по сети —
+по нему удобно сверяться. Раньше здесь стоял `--info=progress2` (одна строка
+прогресса), но свежие macOS ставят вместо GNU rsync свой openrsync, а он этот флаг
+не знает и падает с ошибкой. `--stats` понимают оба. Если хочется видеть движение
+по ходу — добавьте `--progress`, он тоже есть в обоих, только печатает строку на
+каждый файл. Узнать, какой у вас rsync: `rsync --version | head -1`.
+
+Не заворачивайте команду в `| tail`: вывод буферизуется, и до самого конца будет
+казаться, что процесс завис.
 
 Времени займёт столько, сколько нужно вашему каналу на отдачу 98 МБ: при 10 Мбит/с
 это около полутора минут, при медленном канале — до пятнадцати. Свой вклад вносит
@@ -325,7 +332,7 @@ curl -s ifconfig.me
 ```bash
 git pull
 node tools/precompress.mjs
-rsync -avz --delete --info=progress2 --exclude='.DS_Store' site/ kabanov-web:/var/www/kabanov.agency/
+rsync -avz --delete --stats --exclude='.DS_Store' site/ kabanov-web:/var/www/kabanov.agency/
 ```
 
 Перезагружать nginx не нужно, он читает файлы с диска. Имена файлов в `/assets`
