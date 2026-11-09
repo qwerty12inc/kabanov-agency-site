@@ -6,7 +6,7 @@ import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, statSync } from 'node:fs';
 
 const run = promisify(execFile);
 const PORT = Number(process.env.PORT || 8899);
@@ -24,6 +24,13 @@ const pick = (dir, test) => {
 };
 // Нужен именно предсжатый: на нём проверяется отдача gzip_static.
 const JS = pick('assets/js', (f) => f.endsWith('.mjs') && existsSync(resolve(ROOT, 'assets/js', `${f}.gz`)));
+// Файл данных CMS. Имя папки версии меняется (tools/cms-version.mjs), поэтому ищем на диске.
+const CMS_FILE = (() => {
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(resolve(d, e.name)) : [resolve(d, e.name)]));
+  const f = walk(resolve(ROOT, 'assets/cms')).find((p) => p.endsWith('-chunk-default-0.cmsdata'));
+  if (!f) throw new Error('в assets/cms не нашлось файла данных для проверки');
+  return f.slice(ROOT.length);
+})();
 const CSS = pick('assets/vendor', () => true).replace(/\/$/, '') + '/lenis.css';
 
 const CASES = [
@@ -146,6 +153,25 @@ http {
     const gzOk = enc === 'gzip';
     if (!gzOk) failed++;
     console.log(`  ${gzOk ? '✓' : '✗'} предсжатый gzip отдаётся${' '.repeat(11)}content-encoding: ${enc || '(нет)'}`);
+
+    // Данные CMS: отдаются как есть. Загрузчик сверяет длину ответа с ожидаемой, и любое
+    // сжатие ломает интерактивность страницы. Кэш — с проверкой: имя файла не содержит
+    // хеша, и «навсегда» оставило бы посетителям старые данные после любой правки.
+    const cmsSize = statSync(`${ROOT}${CMS_FILE}`).size;
+    const cms = await fetch(`${base}${CMS_FILE}`, { headers: { 'accept-encoding': 'gzip, br' } });
+    const cmsBody = (await cms.arrayBuffer()).byteLength;
+    const cmsChecks = [
+      ['данные CMS не сжимаются', !cms.headers.get('content-encoding'), `content-encoding: ${cms.headers.get('content-encoding') || '(нет)'}`],
+      ['данные CMS — точная длина', cmsBody === cmsSize, `${cmsBody} из ${cmsSize} байт`],
+      ['данные CMS — кэш с проверкой', /must-revalidate/.test(cms.headers.get('cache-control') || '') && !/immutable/.test(cms.headers.get('cache-control') || ''), `cache-control: ${cms.headers.get('cache-control') || '(нет)'}`],
+    ];
+    const etag = cms.headers.get('etag');
+    const again = await fetch(`${base}${CMS_FILE}`, { headers: { 'if-none-match': etag || '' } });
+    cmsChecks.push(['данные CMS — повтор даёт 304', again.status === 304, `${again.status} при If-None-Match`]);
+    for (const [name, ok, detail] of cmsChecks) {
+      if (!ok) failed++;
+      console.log(`  ${ok ? '✓' : '✗'} ${name.padEnd(34)} ${detail}`);
+    }
 
     // Запрос «из-за CDN»: TLS терминирован снаружи, к серверу пришли по http.
     // Редирект всё равно обязан вести на https, иначе посетитель получит лишний

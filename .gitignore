@@ -7,3 +7,4 @@ site/**/*.br
 
 # служебный файл Finder на Mac
 .DS_Store
+__pycache__/

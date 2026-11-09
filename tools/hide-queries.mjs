@@ -14,29 +14,12 @@
 // кейсы категории показываются сразу. В «3D» их было 4 вместе со скрытым — после
 // скрытия честно 3, четвёртого просто нет.
 //
-// Переименование. Чанки /assets/js отдаются с immutable на год, и вернувшийся
-// посетитель не увидел бы правку, оставив файлу старое имя. Поэтому изменённый
-// чанк получает новое имя, а вместе с ним — все чанки, которые на него
-// ссылаются (их содержимое меняется: в них новое имя), и так по цепочке. HTML
-// кэшируется с must-revalidate и подхватывает новые имена сразу.
+// Переименование изменённых чанков цепочкой — в tools/chunks.mjs, там же объяснено, зачем.
 //
 // Шаг идемпотентный: чанк, в котором уже есть __kdaHide, пропускается.
-import { readFile, writeFile, readdir, unlink } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
-import { join, extname } from 'node:path';
+import { loadChunks, commitChunks } from './chunks.mjs';
 
-const ROOT = 'site';
-const JS = join(ROOT, 'assets/js');
-const TEXT_EXT = new Set(['.html', '.mjs', '.js', '.css', '.json', '.xml', '.txt']);
 const MARK = '__kdaHide';
-
-async function* walk(dir) {
-  for (const e of await readdir(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) yield* walk(p);
-    else yield p;
-  }
-}
 
 /** Закрывающая скобка для открывающей на позиции open. Строки в шаблонных кавычках без скобок внутри — так в этих фабриках. */
 function matchBrace(src, open) {
@@ -80,93 +63,26 @@ function patchChunk(src) {
   return [out, count];
 }
 
-const newName = (name, content) => {
-  const h = createHash('sha1').update(content).digest('base64url').slice(0, 8);
-  // имя.ХЕШ.mjs → имя.НОВЫЙХЕШ.mjs
-  return name.replace(/\.[A-Za-z0-9_-]{8}\.mjs$/, `.${h}.mjs`);
-};
-
 async function main() {
-  const files = (await readdir(JS)).filter((f) => f.endsWith('.mjs'));
-  const content = new Map();
-  for (const f of files) content.set(f, await readFile(join(JS, f), 'utf8'));
+  const content = await loadChunks();
 
-  // 1. Патч.
-  const renames = new Map(); // старое имя → новое
+  const changed = new Set();
   let patchedQueries = 0;
-  for (const f of files) {
-    const src = content.get(f);
+  for (const [f, src] of content) {
     if (!/pageSize:\d+,query:/.test(src) || src.includes(MARK)) continue;
     const [out, n] = patchChunk(src);
     if (!n) continue;
     patchedQueries += n;
     content.set(f, out);
-    renames.set(f, null); // имя посчитаем после замены ссылок
+    changed.add(f);
     console.log(`  запрос списка пропатчен: ${f} (${n})`);
   }
-  if (!renames.size) {
+  if (!changed.size) {
     console.log('менять нечего — запросы списков уже пропатчены');
     return;
   }
-
-  // 2. Цепочка ссылающихся чанков: их содержимое тоже меняется.
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const f of files) {
-      if (renames.has(f)) continue;
-      const src = content.get(f);
-      if ([...renames.keys()].some((r) => src.includes(r))) {
-        renames.set(f, null);
-        grew = true;
-        console.log(`  ссылается на изменённый — тоже переименуется: ${f}`);
-      }
-    }
-  }
-
-  // 3. Новые имена: от содержимого с уже обновлёнными ссылками на других.
-  // Ссылки внутри файла на самого себя заменяются после, вместе со всеми.
-  for (const f of renames.keys()) renames.set(f, newName(f, content.get(f) + f));
-  for (const [f, src] of content) {
-    let s = src;
-    for (const [from, to] of renames) s = s.split(from).join(to);
-    content.set(f, s);
-  }
-
-  // 4. Запись: новые файлы, удаление старых.
-  for (const [from, to] of renames) {
-    await writeFile(join(JS, to), content.get(from));
-    await unlink(join(JS, from));
-  }
-  for (const f of files) if (!renames.has(f)) await writeFile(join(JS, f), content.get(f));
-
-  // 5. Ссылки во всех остальных текстовых файлах сайта (HTML, карты и т. п.).
-  let refFiles = 0;
-  for await (const p of walk(ROOT)) {
-    if (p.startsWith(JS) || !TEXT_EXT.has(extname(p))) continue;
-    const before = await readFile(p, 'utf8');
-    let s = before;
-    for (const [from, to] of renames) s = s.split(from).join(to);
-    if (s !== before) {
-      await writeFile(p, s);
-      refFiles++;
-    }
-  }
-
-  console.log(`запросов пропатчено: ${patchedQueries}, файлов переименовано: ${renames.size}, ссылки обновлены в ${refFiles} файлах`);
-  for (const [from, to] of renames) console.log(`  ${from} → ${to}`);
-
-  // 6. Проверка: старых имён нигде не осталось.
-  const left = [];
-  for await (const p of walk(ROOT)) {
-    if (!TEXT_EXT.has(extname(p))) continue;
-    const s = await readFile(p, 'utf8');
-    for (const from of renames.keys()) if (s.includes(from)) left.push(`${p}: ${from}`);
-  }
-  if (left.length) {
-    console.log('ОСТАЛИСЬ ссылки на старые имена:', left.slice(0, 5));
-    process.exit(1);
-  }
+  await commitChunks(content, changed);
+  console.log(`запросов пропатчено: ${patchedQueries}`);
 }
 
 await main();

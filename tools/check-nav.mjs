@@ -9,7 +9,11 @@
 // Сравниваем результат перехода с прямой загрузкой той же страницы: содержимое
 // должно совпасть, консоль — молчать.
 import { chromium } from 'playwright';
-import { PROFILE, profileOpts, ownHosts, launchOpts } from './lib.mjs';
+import { PROFILE, profileOpts, ownHosts, launchOpts, VENDOR_HOSTS } from './lib.mjs';
+
+// Хосты, к которым копия обращаться не должна. Трекеры Google сюда не входят: счётчик
+// владельца поставлен намеренно (tools/fixes.mjs).
+const BANNED_HOSTS = new Set([...VENDOR_HOSTS, 'events.framer.com']);
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const OWN_HOSTS = ownHosts(BASE);
@@ -70,6 +74,15 @@ async function main() {
       }
     });
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message.slice(0, 100)}`));
+    // Запросы к хостам, от которых копия избавлялась (CDN Framer, шрифты Google).
+    // Прямой заход их не показывает: страница берёт данные из собственного блока, где адреса
+    // уже локальные. А при переходе по ссылке данные читаются из файлов CMS, и пока в них
+    // оставались адреса Framer, карточки тянули картинки с чужого CDN. Аудит ходит через
+    // goto, этот путь не задевает — поэтому проверяется здесь.
+    page.on('request', (r) => {
+      const host = new URL(r.url()).hostname;
+      if (BANNED_HOSTS.has(host)) errors.push(`запрос к ${host}: ${r.url().split('/').pop().slice(0, 40)}`);
+    });
     page.on('response', (r) => {
       const u = new URL(r.url());
       if (OWN_HOSTS.has(u.hostname) && r.status() >= 400) {
