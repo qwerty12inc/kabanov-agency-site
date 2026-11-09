@@ -4,3 +4,6 @@ shots/
 # Производные файлы сжатия: создаются `npm run precompress` перед деплоем.
 site/**/*.gz
 site/**/*.br
+
+# служебный файл Finder на Mac
+.DS_Store

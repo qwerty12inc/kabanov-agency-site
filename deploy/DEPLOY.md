@@ -131,9 +131,15 @@ ssh kabanov-web 'sudo mkdir -p /var/www/kabanov.agency /var/www/certbot && \
 ## Шаг 3. Заливка
 
 ```bash
-rsync -avz --delete --info=progress2 site/ kabanov-web:/var/www/kabanov.agency/
+rsync -avz --delete --info=progress2 --exclude='.DS_Store' site/ kabanov-web:/var/www/kabanov.agency/
 rsync -avz deploy/ kabanov-web:~/deploy/
 ```
+
+`--exclude='.DS_Store'` — служебный файл Finder на Mac. Он не под git и в `site/`
+появляется сам, стоит открыть папку в Finder. Без исключения он уедет в корень
+сайта и будет доступен по `https://kabanov.agency/.DS_Store`, выдавая имена файлов.
+При сверке числа файлов локально он остаётся: на сервере будет на один меньше,
+если `.DS_Store` есть в `site/`.
 
 `--info=progress2` показывает единую строку прогресса. Не заворачивайте команду
 в `| tail`: вывод буферизуется, и до самого конца будет казаться, что процесс завис.
@@ -319,7 +325,7 @@ curl -s ifconfig.me
 ```bash
 git pull
 node tools/precompress.mjs
-rsync -avz --delete --info=progress2 site/ kabanov-web:/var/www/kabanov.agency/
+rsync -avz --delete --info=progress2 --exclude='.DS_Store' site/ kabanov-web:/var/www/kabanov.agency/
 ```
 
 Перезагружать nginx не нужно, он читает файлы с диска. Имена файлов в `/assets`
