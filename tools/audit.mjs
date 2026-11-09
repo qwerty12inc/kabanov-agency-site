@@ -102,9 +102,30 @@ async function settleAfterLoad(page) {
   await page.waitForTimeout(1200);
 }
 
+/**
+ * Список страниц. Раньше брался только из `.work/manifest.json`, который пишет
+ * краулер. Но `.work/` не в git и не переживает перезапуск машины, а краулить
+ * больше нечего — Framer отключён. Поэтому без манифеста список берётся из карты
+ * сайта в `site/`: она под контролем версий и описывает ровно то, что публично.
+ * Скрытые кейсы из карты убраны, и аудит их не обходит — это правильно, их
+ * отдельно проверяет check-hidden.
+ */
+async function pageList() {
+  if (existsSync('.work/manifest.json')) {
+    const manifest = JSON.parse(await readFile('.work/manifest.json', 'utf8'));
+    return manifest.pages.map((p) => p.urlPath);
+  }
+  const paths = [];
+  for (const name of ['sitemap_ru.xml', 'sitemap_en.xml']) {
+    const xml = await readFile(`site/${name}`, 'utf8');
+    for (const [, loc] of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) paths.push(new URL(loc).pathname);
+  }
+  if (!paths.length) throw new Error('нет ни .work/manifest.json, ни страниц в site/sitemap_*.xml');
+  return [...new Set(paths)];
+}
+
 async function main() {
-  const manifest = JSON.parse(await readFile('.work/manifest.json', 'utf8'));
-  const paths = manifest.pages.map((p) => p.urlPath);
+  const paths = await pageList();
 
   const done = new Set(loadRows().map((r) => r.path));
   const todo = paths.filter((p) => !done.has(p));

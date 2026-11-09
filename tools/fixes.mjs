@@ -97,7 +97,77 @@ gtag('config','G-S4XYP0N8G7');
 </script>`,
 };
 
-const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS];
+/**
+ * Правка 3. Скрытые кейсы.
+ *
+ * «Скрыть» здесь значит «убрать из витрины», а не «удалить»: кейса нет ни в
+ * одном списке, ни в «следующем проекте», ни в карте сайта, поисковикам велено
+ * его не индексировать, — но по прямой ссылке страница открывается. Так не
+ * ломаются ссылки, которые уже отправлены клиентам, и вернуть кейс можно,
+ * просто убрав его слаг из этого списка.
+ *
+ * Карточки прячем стилем, а не вырезаем из HTML, и это не лень. Списки
+ * проектов рисуются двумя путями: при прямом заходе — из готового HTML, а при
+ * переходе по ссылке внутри сайта — заново в браузере, из данных CMS. Данные
+ * CMS — двоичный формат Framer с таблицей смещений, и вырезать из него запись,
+ * не сломав остальные, нельзя без разбора формата. Стиль же действует на оба
+ * пути одинаково: он стоит в <head> каждой страницы и переживает клиентскую
+ * навигацию, потому что <head> при ней не перезагружается. По той же причине
+ * правило ставится на все страницы, а не только на те, где есть карточка.
+ *
+ * Карточка в разметке — это <a>, обёрнутая вокруг всей плитки, поэтому
+ * спрятанная ссылка не оставляет в сетке дыры. Ссылки бывают относительными
+ * («./projects/…», «../projects/…», «./…»), но все кончаются на «/слаг».
+ * `!important` — потому что у Framer встречаются правила отображения с
+ * большей специфичностью, а скрытие должно побеждать безусловно.
+ */
+const HIDDEN_CASES = ['3d-movie-muted'];
+
+const HIDE_CASES = {
+  name: 'скрытые кейсы: карточки и ссылки',
+  needle: '</head>',
+  css: `${HIDDEN_CASES.map((slug) => `html a[href$="/${slug}"]`).join(',')}{display:none!important}`,
+};
+
+const NOINDEX_HIDDEN = {
+  name: 'скрытые кейсы: запрет индексации',
+  match: (file) => HIDDEN_CASES.some((slug) => file.replace(/\\/g, '/').endsWith(`/projects/${slug}/index.html`)),
+  html: '<meta name="robots" content="noindex">',
+};
+
+const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS, HIDE_CASES, NOINDEX_HIDDEN];
+
+/**
+ * Карта сайта: записи скрытых кейсов убираются. Поисковикам незачем знать
+ * про страницу, которую мы просим не индексировать.
+ */
+async function pruneSitemaps() {
+  let removed = 0;
+  for (const name of await readdir(ROOT)) {
+    if (!/^sitemap.*\.xml$/.test(name)) continue;
+    const path = join(ROOT, name);
+    const before = await readFile(path, 'utf8');
+    let xml = before;
+    for (const slug of HIDDEN_CASES) {
+      const re = new RegExp(`<url>(?:(?!</url>)[\\s\\S])*?/projects/${slug}</loc>(?:(?!</url>)[\\s\\S])*?</url>\\s*`, 'g');
+      xml = xml.replace(re, () => {
+        removed++;
+        return '';
+      });
+    }
+    if (xml !== before) await writeFile(path, xml);
+  }
+  // Повторный запуск законно ничего не находит, поэтому ноль — не ошибка.
+  // Ошибка — если кейс где-то остался.
+  for (const name of await readdir(ROOT)) {
+    if (!/^sitemap.*\.xml$/.test(name)) continue;
+    const xml = await readFile(join(ROOT, name), 'utf8');
+    for (const slug of HIDDEN_CASES) {
+      if (xml.includes(`/projects/${slug}<`)) throw new Error(`${name}: скрытый кейс ${slug} остался в карте сайта`);
+    }
+  }
+  return removed;
+}
 
 async function* htmlFiles(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -130,7 +200,8 @@ async function main() {
     const css = [];
     const markup = [];
     for (const fix of FIXES) {
-      if (!html.includes(fix.needle)) continue;
+      const fits = fix.match ? fix.match(file, html) : html.includes(fix.needle);
+      if (!fits) continue;
       if (fix.css) css.push(`/* ${fix.name} */\n${fix.css}`);
       if (fix.html) markup.push(`<!-- ${fix.name} -->\n${fix.html}`);
       applied.set(fix.name, applied.get(fix.name) + 1);
@@ -157,6 +228,8 @@ async function main() {
     if (count === 0) throw new Error(`правка «${name}» не подошла ни к одной странице — разметка изменилась`);
     console.log(`  ${name}: ${count} стр.`);
   }
+  const pruned = await pruneSitemaps();
+  console.log(`  скрытые кейсы: из карты сайта убрано записей ${pruned}${pruned ? '' : ' (уже убраны раньше)'}`);
 }
 
 await main();
