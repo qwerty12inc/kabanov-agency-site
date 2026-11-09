@@ -9,6 +9,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 
 const ROOT = 'site';
 const MARK_OPEN = '<!-- правки копии -->';
@@ -135,7 +136,61 @@ const NOINDEX_HIDDEN = {
   html: '<meta name="robots" content="noindex">',
 };
 
-const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS, HIDE_CASES, NOINDEX_HIDDEN];
+/**
+ * Правка 4. Hagrid → Hagrid Text.
+ *
+ * У Hagrid строчная g нарисована с горизонтально срезанным хвостом. Это задумка
+ * гарнитуры, а не порча файла: метрики в порядке, вёрстка ничего не обрезает.
+ * На крупном кегле срез читается как стиль, а в названиях карточек на 20 px —
+ * как обрубленная буква. У Hagrid Text та же конструкция, но g классическая.
+ * Решение владельца — перевести сайт на Hagrid Text целиком.
+ *
+ * Как сделано. Код Framer не трогаем: имена семейств ("Hagrid Medium" и т. п.)
+ * зашиты и в HTML, и в чанках /assets/js, а чанки закэшированы у посетителей
+ * на год (immutable). Правка внутри чанка до вернувшихся посетителей не дошла
+ * бы. Вместо этого здесь объявлены @font-face с ТЕМИ ЖЕ именами семейств и
+ * весами, но с файлами Hagrid Text. При равных дескрипторах выигрывает правило,
+ * объявленное позже, а наш блок стоит в конце <head>. Проверено замером через
+ * DevTools (CSS.getPlatformFontsForNode): и при прямом заходе, и после перехода
+ * по ссылке внутри сайта текст рисуется HagridText-*, а не Hagrid-*.
+ *
+ * Начертания. Владелец прислал Light, Regular, Bold, Extrabold и Heavy — без
+ * Medium (500), а им набрана бо́льшая часть заголовков. Сравнили на живых
+ * страницах Medium → Regular и Medium → Bold; выбран Regular. Если появится
+ * настоящий Hagrid Text Medium — положить файл в /assets/fonts и поменять
+ * одну строку ниже.
+ *
+ * Файлы — свои, из покупки владельца, конвертированы из OTF в woff2 (вдвое
+ * легче). Кириллица полная: 892 символа, в том числе 102 русских. Шрифты
+ * Adobe Fonts (use.typekit.net) рассматривались и отклонены: в наборе не было
+ * кириллицы и Medium, а лицензия Adobe запрещает класть их файлы на свой
+ * сервер, то есть сайт снова зависел бы от внешнего хоста.
+ *
+ * Если файла по какой-то причине нет, браузер возьмёт следующее правило с тем
+ * же именем — исходный Hagrid Framer. Сайт не останется без шрифта.
+ */
+const HAGRID_TEXT_FILES = {
+  regular: '/assets/fonts/hagrid-text-regular.5dc5d105d0.woff2',
+  bold: '/assets/fonts/hagrid-text-bold.6c07121779.woff2',
+  heavy: '/assets/fonts/hagrid-text-heavy.6073a2bec9.woff2',
+};
+const HAGRID_TO_TEXT = [
+  // [семейство Framer, вес, файл Hagrid Text]
+  ['Hagrid Medium', 500, HAGRID_TEXT_FILES.regular], // Medium нет — выбран Regular
+  ['Hagrid Regular', 400, HAGRID_TEXT_FILES.regular],
+  ['Hagrid Text Regular', 400, HAGRID_TEXT_FILES.regular],
+  ['Hagrid Bold', 700, HAGRID_TEXT_FILES.bold],
+  ['Hagrid Heavy', 900, HAGRID_TEXT_FILES.heavy],
+];
+const HAGRID_TEXT = {
+  name: 'Hagrid → Hagrid Text',
+  needle: '</head>', // на всех страницах: стиль переживает клиентскую навигацию
+  css: HAGRID_TO_TEXT.map(([family, weight, file]) =>
+    `@font-face{font-family:"${family}";font-style:normal;font-weight:${weight};font-display:swap;src:url(${file}) format("woff2")}`,
+  ).join('\n'),
+};
+
+const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS, HIDE_CASES, NOINDEX_HIDDEN, HAGRID_TEXT];
 
 /**
  * Карта сайта: записи скрытых кейсов убираются. Поисковикам незачем знать
@@ -178,6 +233,9 @@ async function* htmlFiles(dir) {
 }
 
 async function main() {
+  for (const file of Object.values(HAGRID_TEXT_FILES)) {
+    if (!existsSync(join(ROOT, file))) throw new Error(`нет файла шрифта ${file} — правка «Hagrid → Hagrid Text» сослалась бы на пустоту`);
+  }
   const applied = new Map(FIXES.map((f) => [f.name, 0]));
   let touched = 0;
   let total = 0;
