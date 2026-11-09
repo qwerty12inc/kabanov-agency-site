@@ -9,6 +9,7 @@
     "assets": "node tools/assets.mjs",
     "fixes": "node tools/fixes.mjs",
     "debrand": "node tools/debrand.mjs",
+    "hide-queries": "node tools/hide-queries.mjs",
     "serve": "node tools/serve.mjs",
     "audit": "node tools/audit.mjs",
     "shots": "node tools/shots.mjs",

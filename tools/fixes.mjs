@@ -10,6 +10,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { HIDDEN_CASES, hideScript } from './hidden.mjs';
 
 const ROOT = 'site';
 const MARK_OPEN = '<!-- правки копии -->';
@@ -121,13 +122,27 @@ gtag('config','G-S4XYP0N8G7');
  * («./projects/…», «../projects/…», «./…»), но все кончаются на «/слаг».
  * `!important` — потому что у Framer встречаются правила отображения с
  * большей специфичностью, а скрытие должно побеждать безусловно.
+ *
+ * Одного стиля мало: списки отдают проекты порциями (на главной по 4, в
+ * «Проектах» по 10), и спрятанная карточка в порции место всё равно занимает —
+ * сетка 2×2 превращалась в 2 + 1. Поэтому скрытый кейс ещё и исключается из
+ * самого запроса к CMS: в чанках стоит вызов window.__kdaHide (его ставит
+ * tools/hide-queries.mjs, один раз), а сама функция со списком слагов — здесь,
+ * в HTML (правка ниже). Стиль остаётся страховкой: для готового HTML до
+ * загрузки скриптов и для блока «следующий проект», который не запрос, а ссылка.
  */
-const HIDDEN_CASES = ['3d-movie-muted'];
-
 const HIDE_CASES = {
   name: 'скрытые кейсы: карточки и ссылки',
   needle: '</head>',
   css: `${HIDDEN_CASES.map((slug) => `html a[href$="/${slug}"]`).join(',')}{display:none!important}`,
+};
+
+const HIDE_IN_QUERIES = {
+  name: 'скрытые кейсы: исключение из запросов списков',
+  needle: '</head>',
+  // Обычный скрипт, не модуль: выполняется при разборе <head>, то есть раньше
+  // отложенных модулей Framer, которые его вызывают.
+  html: `<script>${hideScript()}</script>`,
 };
 
 const NOINDEX_HIDDEN = {
@@ -190,7 +205,7 @@ const HAGRID_TEXT = {
   ).join('\n'),
 };
 
-const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS, HIDE_CASES, NOINDEX_HIDDEN, HAGRID_TEXT];
+const FIXES = [NEXT_PROJECT_OVERFLOW, GOOGLE_ANALYTICS, HIDE_CASES, HIDE_IN_QUERIES, NOINDEX_HIDDEN, HAGRID_TEXT];
 
 /**
  * Карта сайта: записи скрытых кейсов убираются. Поисковикам незачем знать

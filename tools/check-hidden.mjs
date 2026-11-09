@@ -5,11 +5,20 @@
 // (браузер рисует список заново из данных CMS). Второй путь обычным `goto` не
 // проверить — поэтому здесь отдельно делается клик. Плюс: страница самого кейса
 // по прямой ссылке должна открываться и нести запрет индексации.
+//
+// И третье: первая порция постраничных списков должна быть полной. Списки
+// отдают проекты порциями (главная — 4, «Проекты» — 10), и пока скрытый кейс
+// только прятался стилем, он занимал в порции место: 2×2 превращалось в 2 + 1.
+// Теперь он исключён из самого запроса (tools/hide-queries.mjs), и это здесь
+// проверяется числом карточек.
 import { chromium } from 'playwright';
 import { launchOpts } from './lib.mjs';
+import { HIDDEN_CASES } from './hidden.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
-const HIDDEN = (process.env.HIDDEN || '3d-movie-muted').split(',');
+const HIDDEN = process.env.HIDDEN ? process.env.HIDDEN.split(',') : HIDDEN_CASES;
+// Размер первой порции постраничных списков — из pageSize в коде страниц.
+const FULL = { '/': 4, '/en/': 4, '/projects': 10, '/en/projects': 10 };
 const LISTS = ['/', '/projects', '/categories/3d', '/projects/performance-okko',
   '/en/', '/en/projects', '/en/categories/3d', '/en/projects/performance-okko'];
 
@@ -28,7 +37,7 @@ const inspect = (page) => page.evaluate((hidden) => {
   const links = [...document.querySelectorAll('a[href]')];
   return {
     leaks: links.filter((a) => hidden.some((s) => a.getAttribute('href').endsWith(`/${s}`)) && visible(a)).map((a) => a.getAttribute('href')),
-    cards: links.filter((a) => /\/projects\/[^/#?]+$/.test(a.getAttribute('href')) && visible(a)).length,
+    cards: new Set(links.filter((a) => /\/projects\/[^/#?]+$/.test(a.getAttribute('href')) && visible(a)).map((a) => a.getAttribute('href').split('/').pop())).size,
   };
 }, HIDDEN);
 
@@ -39,9 +48,10 @@ for (const path of LISTS) {
   await page.goto(BASE + path, { waitUntil: 'load', timeout: 60000 });
   await page.waitForTimeout(2500);
   const r = await inspect(page);
-  const ok = r.leaks.length === 0;
+  const full = FULL[path] === undefined || r.cards === FULL[path];
+  const ok = r.leaks.length === 0 && full;
   if (!ok) failed++;
-  console.log(`  ${ok ? '✓' : '✗'} ${path.padEnd(32)} видимых карточек ${String(r.cards).padStart(2)}${ok ? '' : `, ВИДНО: ${r.leaks.join(' ')}`}`);
+  console.log(`  ${ok ? '✓' : '✗'} ${path.padEnd(32)} видимых карточек ${String(r.cards).padStart(2)}${FULL[path] ? ` из ${FULL[path]}` : ''}${r.leaks.length ? `, ВИДНО: ${r.leaks.join(' ')}` : ''}${full ? '' : ', ПОРЦИЯ НЕПОЛНАЯ'}`);
   await page.close();
 }
 
@@ -61,7 +71,7 @@ for (const [from, to] of [['/ai', '/projects'], ['/en/ai', '/en/projects'], ['/p
   await page.click('[data-go="1"]');
   await page.waitForTimeout(4500);
   const r = await inspect(page);
-  const ok = r.leaks.length === 0 && new URL(page.url()).pathname === to;
+  const ok = r.leaks.length === 0 && new URL(page.url()).pathname === to && (FULL[to] === undefined || r.cards === FULL[to]);
   if (!ok) failed++;
   console.log(`  ${ok ? '✓' : '✗'} ${from} → ${to.padEnd(14)} видимых карточек ${String(r.cards).padStart(2)}${r.leaks.length ? `, ВИДНО: ${r.leaks.join(' ')}` : ''}`);
   await page.close();
