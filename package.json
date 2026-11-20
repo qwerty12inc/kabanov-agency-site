@@ -11,6 +11,8 @@
     "debrand": "node tools/debrand.mjs",
     "hide-queries": "node tools/hide-queries.mjs",
     "cms-version": "node tools/cms-version.mjs",
+    "add-project": "python3 tools/add-project.py",
+    "cms-ranges": "python3 tools/cms-ranges.py",
     "serve": "node tools/serve.mjs",
     "audit": "node tools/audit.mjs",
     "shots": "node tools/shots.mjs",
@@ -23,7 +25,9 @@
     "check:nav": "node tools/check-nav.mjs",
     "check:hidden": "node tools/check-hidden.mjs",
     "check:fonts": "node tools/check-fonts.mjs",
-    "check:videos": "node tools/check-videos.mjs"
+    "check:videos": "node tools/check-videos.mjs",
+    "check:lists": "node tools/check-lists.mjs",
+    "check:cms": "python3 tools/cms-ranges.py --check"
   },
   "devDependencies": {
     "pixelmatch": "^7.2.0",

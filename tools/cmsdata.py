@@ -268,3 +268,107 @@ def selftest(chunk, index_bytes):
         rec = chunk[off:off + ln]
         assert build_record(parse_record(rec)) == rec, f'запись {rid}: сборка не совпала с исходником'
     return len(sections), len(spans)
+
+
+# ── пересборка коллекции целиком ───────────────────────────────────────────
+# Нужна, чтобы добавить запись: проще и надёжнее собрать чанк и все индексы заново
+# из списка записей, чем сдвигать смещения на месте. Порядок записей в индексах
+# воспроизводится правилом ниже; правило проверено тем, что пересборка нетронутой
+# коллекции даёт исходные файлы байт в байт (`rebuild_selftest`).
+#
+# Правило сортировки (выведено из самих файлов):
+#   * пустые значения (поля у записи нет) — первыми;
+#   * индексы с заголовком {"type":1} (id и пары id/слаг) — по байтам;
+#   * {"type":0} — строки без учёта регистра; массивы — сначала по числу элементов,
+#     потом поэлементно без учёта регистра; прочее (JSON картинки, ссылки) — по байтам;
+#   * при равных значениях — по смещению записи в чанке (то есть в порядке коллекции).
+def decode_records(chunk, sections):
+    """→ [(id, [(имя, тип, сырые байты)])] в порядке записей в чанке."""
+    spans = record_spans(chunk, sections)
+    if struct.unpack('>I', chunk[:4])[0] != len(spans):
+        raise ValueError('число записей в заголовке чанка не совпадает с индексом')
+    return [(rid, parse_record(chunk[off:off + ln])) for rid, (off, ln) in sorted(spans.items(), key=lambda kv: kv[1][0])]
+
+
+def _index_value(fields, name):
+    for n, t, raw in fields:
+        if n == name:
+            if t in LEN_TYPES:
+                return (t, raw[4:])
+            if t in (0x04, 0x01):
+                return (t, raw)
+            return (t, None)
+    return (0x00, None)
+
+
+def _array_items(raw):
+    r, out = Reader(raw), []
+    for _ in range(r.u16()):
+        t = r.u8()
+        out.append(r.raw(r.u32()).decode().lower() if t in LEN_TYPES else bytes([t]))
+    return out
+
+
+def _sort_key(header, values, offset):
+    case_insensitive = b'"type":0' in header
+    key = []
+    for t, v in values:
+        if t == 0x00:
+            key.append((0,))
+        elif case_insensitive and t == 0x0c:
+            key.append((1, 0, v.decode().lower()))
+        elif case_insensitive and t == 0x01:
+            items = _array_items(v)
+            key.append((1, 1, len(items), items))
+        else:
+            key.append((1, 2, v))
+    return (key, offset)
+
+
+def encode_collection(records, template_sections):
+    """Собрать чанк и разделы индексов из записей. Состав и порядок разделов — как в template_sections."""
+    chunk = bytearray(struct.pack('>I', len(records)))
+    placed = []
+    for rid, fields in records:
+        rec = build_record(fields)
+        placed.append((rid, fields, len(chunk), len(rec)))
+        chunk += rec
+    sections = []
+    for s in template_sections:
+        ents = [dict(values=[_index_value(fields, n) for n in s['names']], offset=off, length=ln)
+                for rid, fields, off, ln in placed]
+        ents.sort(key=lambda e: _sort_key(s['header'], e['values'], e['offset']))
+        sections.append(dict(header=s['header'], names=s['names'], entries=ents))
+    return bytes(chunk), sections
+
+
+def rebuild_selftest(chunk, index_bytes):
+    """Пересборка нетронутой коллекции должна дать исходные файлы байт в байт — иначе правило сортировки неверно."""
+    sections = parse_indexes(index_bytes)
+    new_chunk, new_sections = encode_collection(decode_records(chunk, sections), sections)
+    if new_chunk != chunk:
+        raise AssertionError('пересборка: чанк не совпал с исходным')
+    for a, b in zip(sections, new_sections):
+        if a != b:
+            raise AssertionError(f'пересборка: индекс {[n.decode() for n in a["names"]]} не совпал с исходным')
+    if build_indexes(new_sections) != index_bytes:
+        raise AssertionError('пересборка: файл индексов не совпал с исходным')
+
+
+def section_bounds(sections):
+    """Границы разделов в файле индексов: [(from, to)] — их же модуль коллекции держит в `range:{from,to}`."""
+    out, pos = [], 0
+    for s in sections:
+        n = len(build_indexes([s]))
+        out.append((pos, pos + n))
+        pos += n
+    return out
+
+
+def string_field(name, value):
+    return (name.encode(), 0x0c, string_value(value))
+
+
+def int_field(name, value):
+    """Даты в записях — целое число миллисекунд, 8 байт."""
+    return (name.encode(), 0x04, struct.pack('>q', value))

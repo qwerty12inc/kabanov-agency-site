@@ -1,0 +1,21 @@
+{
+  "vk-premium-frank-by-basta": {
+    "id": "Vq8rTkBn3",
+    "createdAt": "2026-11-20T12:00:00Z",
+    "template": "vk-cloud-conf",
+    "client": "VK",
+    "categories": ["r7t3AaPAs"],
+    "video": "https://vimeo.com/1248243584",
+    "cover": "tools/covers/vk-premium-frank-by-basta.jpg",
+    "ru": {
+      "title": "VK Premium x Frank by Basta • ИИ-ролик",
+      "description": "Сгенерировали с помощью ИИ ролик для коллаборации VK Premium и Frank by Баста.",
+      "alt": "VK Премиум x Frank by Баста: логотипы на фоне интерьера ресторана."
+    },
+    "en": {
+      "title": "VK Premium x Frank by Basta • AI-generated video",
+      "description": "We created an AI-generated video for the VK Premium x Frank by Basta collaboration.",
+      "alt": "VK Premium x Frank by Basta: logos over the restaurant interior."
+    }
+  }
+}

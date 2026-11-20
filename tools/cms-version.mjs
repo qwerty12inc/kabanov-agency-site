@@ -8,7 +8,8 @@
 // впервые: вернувшийся посетитель взял бы файл из кэша и при переходе по ссылке
 // внутри сайта увидел бы старую запись.
 //
-// Решение. Имя папки версии — хеш содержимого её файлов. Изменили данные — имя
+// Решение. Имя папки версии — хеш содержимого её файлов и модулей коллекции (в модуле
+// записаны границы индексов, см. tools/cms-ranges.py). Изменили данные — имя
 // сменилось — старые адреса осиротели, а новые у посетителей не закэшированы. Шаг
 // идемпотентный: если имя уже совпадает с хешем, ничего не происходит.
 //
@@ -36,13 +37,19 @@ const CMS = join(ROOT, 'assets/cms');
 const MODULES = join(ROOT, 'assets/modules');
 const COLLECTIONS = ['iRXqyPhCWdDdBHHl7jDH']; // проекты
 
-async function contentHash(dir) {
-  const files = [];
-  for await (const p of walk(dir)) files.push(p);
-  files.sort();
+// В хеш входят и данные, и модули коллекции: модуль хранит байтовые границы индексов
+// (tools/cms-ranges.py) и тоже кэшируется на год, поэтому его правка обязана сменить имя.
+// Сжатые копии (.gz/.br) не входят: precompress делает их позже и из тех же файлов.
+async function contentHash(dirs) {
   const h = createHash('sha1');
-  for (const p of files) h.update(p.slice(dir.length)).update(await readFile(p));
-  return h.digest('base64url').slice(0, 20); // той же длины, что у родных имён
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    const files = [];
+    for await (const p of walk(dir)) if (!/\.(gz|br)$/.test(p)) files.push(p);
+    files.sort();
+    for (const p of files) h.update(p.slice(dir.length)).update(await readFile(p));
+  }
+  return h.digest('hex').slice(0, 20); // той же длины, что у родных имён; без «-» и «_», чтобы имя не начиналось с дефиса
 }
 
 async function main() {
@@ -54,7 +61,8 @@ async function main() {
     const versions = await readdir(join(CMS, coll));
     if (versions.length !== 1) throw new Error(`в ${coll} ожидалась одна папка версии, а их ${versions.length}`);
     const cur = versions[0];
-    const want = await contentHash(join(CMS, coll, cur));
+    const mods = existsSync(join(MODULES, coll)) ? await readdir(join(MODULES, coll)) : [];
+    const want = await contentHash([join(CMS, coll, cur), ...mods.map((m) => join(MODULES, coll, m))]);
 
     if (cur !== want) {
       await rename(join(CMS, coll, cur), join(CMS, coll, want));
