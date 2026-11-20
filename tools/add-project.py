@@ -73,9 +73,12 @@ def make_cover(src_path):
     out = ROOT / 'assets/images'
     full = out / f'{h}{ext}'
     if not full.exists():
-        full.write_bytes(data)
+        if img.format == 'JPEG':
+            full.write_bytes(data)
+        else:  # webp/png — на сайте обложки в JPEG, как у остальных кейсов
+            img.convert('RGB').save(full, 'JPEG', quality=90, optimize=True, progressive=True)
     srcset = []
-    for size in (512, 1024):
+    for size in (s for s in (512, 1024) if s < w):
         p = out / f'{h}~{size}{ext}'
         if not p.exists():
             small = img.convert('RGB').resize((size, round(hgt * size / w)), Image.LANCZOS)
@@ -445,7 +448,7 @@ def patch_categories(slug, spec, cover, cms_result):
             text = path.read_text(encoding='utf-8')
             h = Handover(text, path)
             mp = h.arr[h.arr[0]['0']]
-            touched, order = False, None
+            touched, orders = False, []  # [(порядок до, порядок после)] по каждому запросу списка
             for k in range(1, len(mp), 2):
                 q = h.arr[mp[k]]
                 cat = re.search(r'"where":\{"left":\{"type":"LiteralValue","value":"([^"]+)"\},"operator":"in"', q)
@@ -454,6 +457,7 @@ def patch_categories(slug, spec, cover, cms_result):
                 limit = json.loads(q[:q.rindex('}') + 1]).get('limit', {}).get('value')
                 res = h.arr[mp[k + 1]]
                 items = [h.arr[i] for i in res]
+                before_order = [item_values(h, it)[SLUG] for it in items]
                 if any(item_values(h, it).get(SLUG) == slug for it in items):
                     continue
                 proto = items[0]
@@ -473,7 +477,7 @@ def patch_categories(slug, spec, cover, cms_result):
                 if limit and len(res) > limit:
                     res.pop()
                 touched = True
-                order = order or [item_values(h, h.arr[i])[SLUG] for i in res]
+                orders.append((before_order, [item_values(h, h.arr[i])[SLUG] for i in res]))
             if not touched:
                 continue
             text = h.text()
@@ -492,8 +496,10 @@ def patch_categories(slug, spec, cover, cms_result):
                 cols = [[s for s, _ in r[2]] for r in group]
                 k = len(cols)
                 flat = [cols[i % k][i // k] for i in range(sum(map(len, cols)))]
-                if flat != order[1:]:
-                    raise ValueError(f'{path}: раскладка карточек {cols} не сходится с порядком данных {order[1:]}')
+                # списков в категории бывает два (limit 10 и 14), разные варианты разметки берут разные
+                order = next((after for before, after in orders if before == flat), None)
+                if order is None:
+                    raise ValueError(f'{path}: раскладка карточек {cols} не сходится ни с одним списком данных {[b for b, _ in orders]}')
                 html_of = {s: c for r in group for s, c in r[2]}
                 tpl = cms_card(loc, order[1])
                 html_of[slug] = replace_card_fields(html_of[order[1]], tpl, new)
@@ -501,7 +507,7 @@ def patch_categories(slug, spec, cover, cms_result):
                 for r, col in reversed(list(zip(group, new_cols))):
                     text = text[:r[0]] + ''.join(html_of[s] for s in col) + text[r[1]:]
             path.write_text(text, encoding='utf-8')
-            print(f'  категория {path.relative_to(ROOT).parent}: {len(groups)} вариантов разметки, порядок {order[:3]}…')
+            print(f'  категория {path.relative_to(ROOT).parent}: {len(groups)} вариантов разметки, порядок {orders[0][1][:3]}…')
 
 
 # ── 4. карта сайта и список роликов ────────────────────────────────────────
@@ -567,10 +573,11 @@ def main():
         build_pages(slug, spec, cover, res)
         if res['ru']['prev_first']:  # впервые добавлен
             patch_paginated(slug, spec, cover, res, hidden)
-            patch_categories(slug, spec, cover, res)
             patch_sitemaps(slug, res)
         else:
             refresh_cards(slug, before)
+        # и при добавлении, и при обновлении: категории, где кейса ещё нет (например, добавили категорию)
+        patch_categories(slug, spec, cover, res)
         if videos.get(slug) != spec['video']:
             videos[slug] = spec['video']
             VIDEOS.write_text(json.dumps(videos, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

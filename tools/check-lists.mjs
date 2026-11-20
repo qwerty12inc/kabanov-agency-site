@@ -17,7 +17,7 @@ import { launchOpts } from './lib.mjs';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const projects = JSON.parse(await readFile('tools/projects.json', 'utf8'));
 const newest = Object.keys(projects)[0];
-const PAGES = process.env.PAGES ? process.env.PAGES.split(',') : ['/', '/projects', '/categories/ai', '/en/', '/en/projects', '/en/categories/ai'];
+const PAGES = process.env.PAGES ? process.env.PAGES.split(',') : ['/', '/projects', '/categories/ai', '/categories/motion', '/en/', '/en/projects', '/en/categories/ai', '/en/categories/motion'];
 const VIEWPORTS = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } };
 
 const browser = await chromium.launch(launchOpts());

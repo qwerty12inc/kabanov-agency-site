@@ -4,18 +4,21 @@
     "createdAt": "2026-11-20T12:00:00Z",
     "template": "vk-cloud-conf",
     "client": "VK",
-    "categories": ["r7t3AaPAs"],
+    "categories": [
+      "r7t3AaPAs",
+      "gMcTeXiqI"
+    ],
     "video": "https://vimeo.com/1248243584",
-    "cover": "tools/covers/vk-premium-frank-by-basta.jpg",
+    "cover": "tools/covers/vk-premium-frank-by-basta.webp",
     "ru": {
-      "title": "VK Premium x Frank by Basta • ИИ-ролик",
-      "description": "Сгенерировали с помощью ИИ ролик для коллаборации VK Premium и Frank by Баста.",
-      "alt": "VK Премиум x Frank by Баста: логотипы на фоне интерьера ресторана."
+      "title": "VK и Frank by Баста • ИИ-ролик",
+      "description": "За две недели сделали ИИ-ролик для VK и Frank by Баста. Подготовили раскадровку, анимировали сцены, убрали визуальные артефакты и сделали саунд-дизайн.",
+      "alt": "VK Премиум x Frank by Баста: бургер с сыром и ягодным соусом на подносе с логотипом Frank."
     },
     "en": {
-      "title": "VK Premium x Frank by Basta • AI-generated video",
-      "description": "We created an AI-generated video for the VK Premium x Frank by Basta collaboration.",
-      "alt": "VK Premium x Frank by Basta: logos over the restaurant interior."
+      "title": "VK and Frank by Basta • AI video",
+      "description": "We produced an AI video for VK and Frank by Basta in two weeks. We storyboarded the video, animated the scenes, cleaned up visual artifacts, and handled the sound design.",
+      "alt": "VK Premium x Frank by Basta: a burger with cheese and berry sauce on a tray with the Frank logo."
     }
   }
 }
