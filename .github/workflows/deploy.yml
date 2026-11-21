@@ -1,0 +1,80 @@
+# Выкладка site/ на сервер kabanov.agency.
+#
+# Когда запускается:
+#   * пуш в рабочую ветку, если в сообщении последнего коммита есть «[deploy]»
+#     (так деплой запускается из облачной сессии Claude: у неё нет SSH, только git push);
+#   * вручную: Actions → Deploy → Run workflow (кнопка появится, когда файл попадёт в main).
+#
+# Что делает: собирает .gz/.br (npm run precompress) и заливает site/ через rsync --delete.
+# Ключ DEPLOY_SSH_KEY на сервере ограничен rrsync: он может только писать в
+# /var/www/kabanov.agency — без shell и без sudo. Конфиг nginx этот процесс не трогает,
+# его по-прежнему меняют вручную (deploy/DEPLOY.md, шаг 5).
+#
+# Секреты репозитория (Settings → Secrets and variables → Actions):
+#   DEPLOY_SSH_KEY      — приватный ключ ed25519, только для деплоя
+#   DEPLOY_KNOWN_HOSTS  — строка host key сервера (ssh-keygen -F 158.160.179.74 на Маке)
+name: Deploy
+
+on:
+  push:
+    branches: [claude/framer-site-offline-copy-o0s251]
+    paths: ['site/**', '.github/workflows/deploy.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  HOST: 158.160.179.74
+  SITE: https://kabanov.agency
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deploy]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Сжатие .gz/.br
+        run: node tools/precompress.mjs
+
+      - name: SSH-ключ и known_hosts
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          test -n "$KEY" && test -n "$KNOWN" || { echo "нет секретов DEPLOY_SSH_KEY / DEPLOY_KNOWN_HOSTS"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+
+      - name: Заливка (rsync)
+        run: |
+          rsync -az --delete --stats --exclude='.DS_Store' \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            site/ "deploy@${HOST}:./"
+
+      - name: Проверка по HTTPS
+        run: |
+          main=$(cd site/assets/js && ls script_main.*.mjs)
+          newest=$(node -e "console.log(Object.keys(require('./tools/projects.json'))[0] || '')")
+          fail=0
+          for p in / /en/ /projects /assets/js/$main ${newest:+/projects/$newest /en/projects/$newest}; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE$p")
+            echo "$code $p"; [ "$code" = 200 ] || fail=1
+          done
+          curl -s "$SITE/" | grep -q "$main" || { echo "главная ссылается не на $main"; fail=1; }
+          exit $fail
+
+      - name: Убрать ключ
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

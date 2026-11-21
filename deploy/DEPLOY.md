@@ -348,6 +348,48 @@ rsync -avz --delete --stats --exclude='.DS_Store' site/ kabanov-web:/var/www/kab
 и это была ошибка); у тех, кто уже заходил на сайт, старая запись из кэша исчезает после
 смены имени папки версии, а не после смены заголовков.
 
+## Деплой через GitHub Actions (из облака)
+
+Облачная сессия Claude не может ходить по SSH (наружу только HTTPS), поэтому выкладку
+делает GitHub Actions: `.github/workflows/deploy.yml`. Запуск — пуш в рабочую ветку с
+`[deploy]` в сообщении коммита, или вручную (Actions → Deploy → Run workflow, когда файл
+окажется в `main`). Процесс собирает `.gz/.br`, заливает `site/` через rsync и проверяет
+главную, страницу нового кейса и `script_main` по HTTPS. nginx он не трогает: изменения
+`deploy/*.conf` по-прежнему выкладываются вручную (шаг 5).
+
+Ключ — отдельный, только для деплоя. На сервере он ограничен `rrsync`: пишет только в
+`/var/www/kabanov.agency`, без shell, sudo и проброса портов. Утечёт — максимум
+перезапишут файлы сайта; отзыв — удалить строку из `authorized_keys` и секрет в GitHub.
+
+Разовая настройка (на Маке, где работает `ssh kabanov-web`):
+
+```bash
+# 1. ключ для деплоя (без пароля — им пользуется робот)
+ssh-keygen -t ed25519 -N '' -C 'github-actions-deploy' -f ~/.ssh/kabanov_deploy
+
+# 2. на сервер, с ограничением rrsync
+ssh kabanov-web 'test -x /usr/bin/rrsync && echo rrsync ok'
+ssh kabanov-web "echo 'command=\"/usr/bin/rrsync /var/www/kabanov.agency\",restrict $(cat ~/.ssh/kabanov_deploy.pub)' >> ~/.ssh/authorized_keys"
+
+# 3. проверка ограничения: shell не даёт, rsync работает
+ssh -i ~/.ssh/kabanov_deploy -o IdentitiesOnly=yes deploy@158.160.179.74 'ls /'   # отказ rrsync — так и нужно
+rsync -n -a --stats -e 'ssh -i ~/.ssh/kabanov_deploy -o IdentitiesOnly=yes' site/ deploy@158.160.179.74:./ | tail -3
+
+# 4. вход только по ключам — должно быть «passwordauthentication no»
+ssh kabanov-web 'sudo sshd -T | grep -i -E "^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin)"'
+
+# 5. секреты в GitHub (или Settings → Secrets and variables → Actions → New repository secret)
+gh secret set DEPLOY_SSH_KEY -R qwerty12inc/kabanov-agency-site < ~/.ssh/kabanov_deploy
+ssh-keygen -F 158.160.179.74 | grep -v '^#' | gh secret set DEPLOY_KNOWN_HOSTS -R qwerty12inc/kabanov-agency-site
+```
+
+6. В консоли Yandex Cloud, группа безопасности `kabanov-agency-web-sg`: правило входящего
+   TCP 22 — источник `0.0.0.0/0` (адреса GitHub Actions меняются). Правила 80/443 не трогать.
+   Это отменяет шаг 7; защита держится на входе только по ключам (пункт 4).
+
+После настройки приватный ключ на Маке можно удалить (`rm ~/.ssh/kabanov_deploy`) —
+он нужен только в секрете GitHub. Новый ключ — повторить пункты 1–5.
+
 ## Если что-то пошло не так
 
 | Симптом | Причина | Что делать |
