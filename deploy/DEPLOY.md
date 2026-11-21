@@ -374,6 +374,9 @@ ssh kabanov-web "echo 'command=\"/usr/bin/rrsync /var/www/kabanov.agency\",restr
 # 3. проверка ограничения: shell не даёт, rsync работает
 ssh -i ~/.ssh/kabanov_deploy -o IdentitiesOnly=yes deploy@158.160.179.74 'ls /'   # отказ rrsync — так и нужно
 rsync -n -a --stats -e 'ssh -i ~/.ssh/kabanov_deploy -o IdentitiesOnly=yes' site/ deploy@158.160.179.74:./ | tail -3
+#    на Mac со штатным openrsync вторая команда получит от rrsync «invalid rsync-command
+#    syntax» — openrsync шлёт опции не в формате GNU rsync. Это не ошибка ключа: в Actions
+#    стоит GNU rsync. Проверить с Мака можно через GNU rsync (brew install rsync) или пропустить.
 
 # 4. вход только по ключам — должно быть «passwordauthentication no»
 ssh kabanov-web 'sudo sshd -T | grep -i -E "^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin)"'
