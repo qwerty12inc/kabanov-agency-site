@@ -18,7 +18,6 @@ name: Deploy
 on:
   push:
     branches: [claude/framer-site-offline-copy-o0s251]
-    paths: ['site/**', '.github/workflows/deploy.yml']
   workflow_dispatch:
 
 concurrency:
