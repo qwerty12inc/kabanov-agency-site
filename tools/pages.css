@@ -1,0 +1,48 @@
+@font-face{font-family:"Hagrid Text";font-weight:400;font-display:swap;src:url(/assets/fonts/hagrid-text-regular.5dc5d105d0.woff2) format("woff2")}
+@font-face{font-family:"Clash Display";font-weight:600;font-display:swap;src:url(/assets/fonts/fontshare-Z3MGHFHX6DCTLQ55LJYRJ5MDCZPMFZU6.woff2) format("woff2")}
+:root{--bg:#f8f6f3;--ink:#2a3132;--muted:#5f6566;--navy:#001666;--accent:#ff5500;--line:#e4e0da;--card:#fff}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.5 Switzer,Arial,Helvetica,sans-serif}
+a{color:var(--navy)}
+.top nav{display:flex;justify-content:center;align-items:center;gap:72px;padding:20px 16px}
+.top nav a{color:var(--muted);text-decoration:none;font-size:16px}
+.logo{font:600 24px/1.1 "Clash Display",Arial,sans-serif;color:var(--navy)!important;text-align:center;letter-spacing:-.01em}
+main{max-width:880px;margin:0 auto;padding:40px 16px 80px}
+h1,h2,.footer-title{font-family:"Hagrid Text",Arial,sans-serif;font-weight:400;color:var(--navy);letter-spacing:-.02em}
+h1{font-size:clamp(44px,8vw,80px);line-height:.95;text-align:center;margin:24px 0 32px}
+h2{font-size:clamp(30px,4.5vw,44px);line-height:1.05;margin:0 0 24px}
+h3{font-size:20px;line-height:1.3;margin:28px 0 8px;color:var(--ink)}
+p{margin:0 0 16px}
+.lead{text-align:center;max-width:720px;margin:0 auto 72px;font-size:20px}
+section{padding:56px 0;border-top:1px solid var(--line)}
+ul{padding-left:1.2em;margin:0 0 16px}
+li{margin:4px 0}
+.cta{margin:24px 0 0}
+.lead .cta{text-align:center}
+.button{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;border-radius:999px;padding:12px 26px;font-size:18px}
+.button:hover{filter:brightness(1.08)}
+.table{overflow-x:auto;margin:16px 0 24px}
+table{border-collapse:collapse;width:100%;min-width:520px;background:var(--card);border-radius:12px;overflow:hidden;font-size:16px}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:400}
+tr.total td{font-weight:700;border-bottom:0}
+.steps{list-style:none;padding:0;counter-reset:s;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:0 0 24px}
+.steps li{counter-increment:s;background:var(--card);border-radius:16px;padding:20px 20px 8px;margin:0}
+.steps li::before{content:counter(s);font:400 32px/1 "Hagrid Text",Arial,sans-serif;color:var(--accent)}
+.steps h3{margin-top:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.card{background:var(--card);border-radius:16px;padding:20px}
+.card h3{margin-top:0}
+.more a{font-weight:700}
+.nolink{color:var(--muted)}
+.next{text-align:center}
+.next .cta{text-align:center}
+footer{text-align:center;padding:72px 16px 32px}
+.footer-title{font-size:clamp(36px,6vw,64px);line-height:1;margin:0 0 24px}
+.contacts{list-style:none;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:12px 32px;margin:0 0 72px;font-size:18px}
+footer .logo{margin:0 0 8px}
+.copy{color:var(--muted);font-size:14px}
+mark.todo{background:#ffe866;color:#5a4a00;border-radius:4px;padding:0 4px;font-size:.85em}
+.draft-banner{background:#ffe866;color:#5a4a00;text-align:center;padding:8px 16px;font-size:14px}
+@media (max-width:600px){.top nav{gap:32px}body{font-size:17px}.lead{font-size:18px;margin-bottom:48px}section{padding:40px 0}}
