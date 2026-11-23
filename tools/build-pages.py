@@ -21,6 +21,10 @@
     без флага  страница собирается в site/ и только если пометок нет; иначе — ошибка
                со списком строк. Так неутверждённое не может попасть на сайт.
 
+    --draft --to-site  тот же черновик, но в site/ — чтобы посмотреть на хостинге. Страница
+               с noindex, ни откуда не ссылается и не в sitemap, но доступна по адресу,
+               и её HTML попадает в публичный репозиторий.
+
 Запуск:  python3 tools/build-pages.py .work/content/design-support.md --slug services/design-support --draft
 """
 import argparse
@@ -202,7 +206,8 @@ def page(meta, blocks, slug, cfg, draft):
 <meta property="og:description" content="{html.escape(meta["Meta-описание"])}">
 <meta property="og:url" content="{url}">
 <meta property="og:type" content="website">
-<link rel="icon" href="/favicon.ico">
+<link rel="icon" href="/assets/images/uwd4WCJ9i6vHzzrPSdncKju4X2Q.png">
+<link rel="apple-touch-icon" href="/assets/images/HOmg6eFMv70BlOltxwxumbIqzk.png">
 <style>{CSS.read_text(encoding="utf-8")}</style>
 </head>
 <body>
@@ -236,6 +241,7 @@ def main():
     ap.add_argument('source')
     ap.add_argument('--slug', required=True, help='адрес без слеша в начале, напр. services/design-support')
     ap.add_argument('--draft', action='store_true')
+    ap.add_argument('--to-site', action='store_true', help='черновик положить в site/ (noindex, без ссылок и sitemap) — посмотреть вживую')
     a = ap.parse_args()
     src = Path(a.source).read_text(encoding='utf-8')
     src = re.sub(r'<!--.*?-->', '', src, flags=re.S)
@@ -250,7 +256,7 @@ def main():
             for n, l in bad[:40]:
                 print(f'  {n}: {l[:140]}')
             sys.exit(f'✗ не опубликовано: пометок {len(bad)}' + ('' if cfg.get('brief_url') else ', нет brief_url в tools/pages.json'))
-    base = ROOT / '.work' / 'preview' if a.draft else ROOT / 'site'
+    base = ROOT / '.work' / 'preview' if a.draft and not a.to_site else ROOT / 'site'
     dest = base / a.slug / 'index.html'
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(page(meta, blocks, a.slug, cfg, a.draft), encoding='utf-8')
