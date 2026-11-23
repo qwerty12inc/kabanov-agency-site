@@ -18,18 +18,19 @@
 :root{--bg:#f8f6f3;--ink:#2a3132;--muted:#5f6566;--navy:#001666;--accent:#ff5500;--line:#e4e0da;--card:#fff;--tile:#ebe9e4}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.5 Switzer,Arial,Helvetica,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.65 Switzer,Arial,Helvetica,sans-serif}
 a{color:var(--navy)}
 .top nav{display:flex;justify-content:center;align-items:center;gap:72px;padding:20px 16px}
 .top nav a{color:var(--muted);text-decoration:none;font-size:16px}
 .logo{font:600 24px/1.1 "Clash Display",Arial,sans-serif;color:var(--navy)!important;text-align:center;letter-spacing:-.01em}
-main{max-width:880px;margin:0 auto;padding:40px 16px 80px}
+main{max-width:832px;margin:0 auto;padding:40px 16px 80px}
+section>h2,section>h3,section>p,section>ul:not(.pills):not(.tiles),.next>*{max-width:640px;margin-left:auto;margin-right:auto}
 h1,h2,.footer-title{font-family:"Hagrid Text",Arial,sans-serif;font-weight:400;color:var(--navy);letter-spacing:-.02em}
-h1{font-size:clamp(44px,8vw,80px);line-height:.95;text-align:center;margin:24px 0 32px}
+h1{font-size:clamp(44px,8vw,80px);line-height:.95;text-align:center;margin:24px auto 32px;max-width:800px}
 h2{font-size:clamp(30px,4.5vw,44px);line-height:1.05;margin:0 0 24px}
 h3{font-size:20px;line-height:1.3;margin:28px 0 8px;color:var(--ink)}
 p{margin:0 0 16px}
-.lead{text-align:center;max-width:720px;margin:0 auto 72px;font-size:20px}
+.lead{text-align:center;max-width:800px;margin:0 auto 72px;font-size:22px;line-height:1.55}
 section{padding:56px 0;border-top:1px solid var(--line)}
 ul{padding-left:1.2em;margin:0 0 16px}
 li{margin:4px 0}
