@@ -39,6 +39,24 @@ ROOT = Path(__file__).resolve().parent.parent
 SITE = 'https://kabanov.agency'
 MARK = re.compile(r'\[\?[^\]]*\]|\[уточнить[^\]]*\]|\[на утверждение[^\]]*\]')
 FIGMA = 'https://www.figma.com/proto/A6np5wJyAAdvY5uFyWwg0v/kda_presentation?node-id=1-6894&amp;viewport=4938%2C1095%2C0.28&amp;t=jlmRVnvuFjopZUfQ-1&amp;scaling=scale-down-width&amp;content-scaling=fixed&amp;page-id=0%3A1'
+# Веер карточек «Как работаем»: на десктопе блок закрепляется, а прокрутка страницы двигает
+# карточки справа налево — от «1 чуть левее центра» до «6 чуть правее центра»; наклон каждой
+# карточки зависит от её расстояния до центра экрана. Без скрипта (и на узких экранах, и при
+# «уменьшить движение») карточки — обычная сетка: текст в HTML от этого не зависит.
+FAN_JS = '''(()=>{const pin=document.querySelector('.steps-pin');if(!pin)return;
+const ol=pin.querySelector('.steps'),cards=[...ol.children],root=document.documentElement;
+const ok=()=>matchMedia('(min-width:1100px)').matches&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
+let x0=0,x1=0,travel=1;
+function layout(){root.classList.toggle('fan',ok());if(!ok()){pin.style.height='';ol.style.transform='';cards.forEach(c=>c.style.transform='');return}
+const vw=innerWidth,W=cards[0].offsetWidth,step=cards[1].offsetLeft-cards[0].offsetLeft;
+x0=vw/2-0.65*W-W/2;x1=vw/2+0.65*W-W/2-(cards.length-1)*step;travel=Math.max(1,x0-x1);
+pin.style.height=(innerHeight+travel)+'px';update()}
+function update(){if(!root.classList.contains('fan'))return;const vw=innerWidth,W=cards[0].offsetWidth,step=W+18;
+const p=Math.min(1,Math.max(0,-pin.getBoundingClientRect().top/travel)),x=x0-(x0-x1)*p;
+ol.style.transform='translateX('+x+'px)';
+for(const li of cards){const d=Math.max(-3,Math.min(3,(x+li.offsetLeft+W/2-vw/2)/step));li.style.transform='translateY('+(d*d*10)+'px) rotate('+(d*5)+'deg)'}}
+let raf=0;addEventListener('scroll',()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(update)},{passive:true});
+addEventListener('resize',layout);layout()})();'''
 CONFIG = ROOT / 'tools' / 'pages.json'  # адрес кнопки «Прислать бриф», адреса кейсов и т. п.
 
 
@@ -234,6 +252,9 @@ def page(meta, blocks, slug, cfg, draft):
             out.append(f'<section class="next">{inner}</section>')
         elif low == 'что входит':
             out.append(render_included(name, body, cfg))
+        elif low == 'как работаем' and '</ol>' in inner:
+            ol, rest = inner.split('</ol>', 1)
+            out.append(f'<section class="how"><div class="steps-pin"><div class="steps-stage"><h2>{esc(name)}</h2>\n{ol}</ol></div></div>\n{rest}</section>')
         else:
             wide = ' class="wide"' if low == 'кейсы' else ''
             out.append(f'<section{wide}><h2>{esc(name)}</h2>\n{inner}</section>')
@@ -279,6 +300,7 @@ def page(meta, blocks, slug, cfg, draft):
 <p class="logo">kabanov<br>agency</p>
 <p class="copy">© {date.today().year} ООО «КДА»</p>
 </footer>
+<script>{FAN_JS}</script>
 </body>
 </html>
 '''
