@@ -194,6 +194,34 @@ def parse(src):
 CSS = (ROOT / 'tools' / 'pages.css')
 
 
+def render_included(name, body, cfg):
+    """«Что входит»: заголовок в центре, вокруг — овалы с задачами (как «Наши услуги» на
+    главной); пары «**Подзаголовок**» + абзац ниже — карточками."""
+    chunks = chunks_of(body)
+    pills, cards = [], []
+    i = 0
+    while i < len(chunks):
+        c = chunks[i]
+        lines = c.split('\n')
+        if all(l.strip().startswith('- ') for l in lines) and not pills:
+            pills = [inline(l.strip()[2:], cfg) for l in lines]
+        elif BOLD_LINE.fullmatch(lines[0].strip()):
+            title = BOLD_LINE.fullmatch(lines[0].strip()).group(1).strip()
+            text = ' '.join(lines[1:])
+            if not text and i + 1 < len(chunks) and not chunks[i + 1].startswith(('**', '- ', '|')):
+                i += 1
+                text = chunks[i]
+            if not (text == '' and i + 1 < len(chunks) and chunks[i + 1].startswith('- ')):
+                cards.append(f'<article class="fit-card"><h3>{inline(title, cfg)}</h3><p>{inline(" ".join(text.split()), cfg)}</p></article>')
+        else:
+            cards.append(f'<p>{inline(" ".join(c.split()), cfg)}</p>')
+        i += 1
+    orbit = ('<div class="orbit">' + f'<h2>{esc(name)}</h2>'
+             + '<ul class="pills">' + ''.join(f'<li>{x}</li>' for x in pills) + '</ul></div>')
+    fit = f'<div class="fit">{"".join(cards)}</div>' if cards else ''
+    return f'<section class="included">{orbit}{fit}</section>'
+
+
 def page(meta, blocks, slug, cfg, draft):
     url = f'{SITE}/{slug}'
     out = []
@@ -204,6 +232,8 @@ def page(meta, blocks, slug, cfg, draft):
             out.append(f'<div class="lead">{inner}</div>')
         elif low == 'следующий шаг':
             out.append(f'<section class="next">{inner}</section>')
+        elif low == 'что входит':
+            out.append(render_included(name, body, cfg))
         else:
             wide = ' class="wide"' if low == 'кейсы' else ''
             out.append(f'<section{wide}><h2>{esc(name)}</h2>\n{inner}</section>')

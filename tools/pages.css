@@ -32,17 +32,36 @@ tr.total td{font-weight:700;border-bottom:0}
 .steps li{counter-increment:s;background:var(--card);border-radius:16px;padding:20px 20px 8px;margin:0}
 .steps li::before{content:counter(s);font:400 32px/1 "Hagrid Text",Arial,sans-serif;color:var(--accent)}
 .steps h3{margin-top:12px}
-.pills{list-style:none;padding:24px 0 40px;margin:0 0 16px;display:flex;flex-wrap:wrap;justify-content:center;gap:44px 24px}
-.pills li{margin:0;border-radius:999px;padding:16px 32px;font:400 clamp(20px,2.4vw,26px)/1.2 "Hagrid Text",Arial,sans-serif;color:var(--navy);white-space:nowrap}
-.pills li:nth-child(9n+1){background:#cadcfc;transform:rotate(8deg)}
-.pills li:nth-child(9n+2){background:#f1c40f;transform:rotate(-8deg)}
-.pills li:nth-child(9n+3){background:#ff5900;transform:rotate(-10deg)}
-.pills li:nth-child(9n+4){background:#d35400;transform:rotate(-7deg)}
-.pills li:nth-child(9n+5){background:#3498db;transform:rotate(7deg)}
-.pills li:nth-child(9n+6){background:#e74c3c;transform:rotate(-4deg)}
-.pills li:nth-child(9n+7){background:#9b59b6;transform:rotate(9deg)}
-.pills li:nth-child(9n+8){background:#16a085;transform:rotate(3deg)}
-.pills li:nth-child(9n+9){background:#1abc9c;transform:rotate(-9deg)}
+.included{border-top:0}
+.orbit{position:relative;text-align:center}
+.orbit h2{margin:0 0 32px}
+.pills{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;justify-content:center;gap:28px 14px}
+.pills li{margin:0;border-radius:999px;padding:12px 24px;font:400 clamp(18px,2vw,24px)/1.2 "Hagrid Text",Arial,sans-serif;color:var(--navy);white-space:nowrap;--r:0deg;transform:rotate(var(--r))}
+.pills li:nth-child(8n+1){background:#cadcfc;--r:8deg}
+.pills li:nth-child(8n+2){background:#f1c40f;--r:-7deg}
+.pills li:nth-child(8n+3){background:#ff5900;--r:-9deg}
+.pills li:nth-child(8n+4){background:#d35400;--r:-7deg}
+.pills li:nth-child(8n+5){background:#3498db;--r:7deg}
+.pills li:nth-child(8n+6){background:#16a085;--r:3deg}
+.pills li:nth-child(8n+7){background:#9b59b6;--r:9deg}
+.pills li:nth-child(8n+8){background:#e74c3c;--r:-4deg}
+@media (min-width:1100px){
+.orbit{width:min(1200px,calc(100vw - 32px));margin-left:50%;transform:translateX(-50%);height:560px}
+.orbit h2{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:clamp(56px,6vw,88px);white-space:nowrap;margin:0}
+.pills{display:block;position:absolute;inset:0}
+.pills li{position:absolute;transform:translate(-50%,-50%) rotate(var(--r))}
+.pills li:nth-child(1){left:20%;top:13%}
+.pills li:nth-child(2){left:53%;top:9%}
+.pills li:nth-child(3){left:83%;top:20%}
+.pills li:nth-child(4){left:9%;top:50%}
+.pills li:nth-child(5){left:89%;top:52%}
+.pills li:nth-child(6){left:20%;top:85%}
+.pills li:nth-child(7){left:51%;top:92%}
+.pills li:nth-child(8){left:81%;top:83%}
+}
+.fit{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:64px}
+.fit-card{background:var(--tile);border-radius:16px;padding:28px 28px 20px}
+.fit-card h3{margin:0 0 8px;font:400 24px/1.25 "Hagrid Text",Arial,sans-serif;color:var(--navy)}
 .tiles{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:0 0 24px}
 .tiles li{background:var(--tile);border-radius:16px;padding:20px;margin:0;font-size:18px;line-height:1.3;min-height:88px;display:flex;align-items:flex-end;color:var(--navy)}
 .tiles.muted li{background:transparent;border:1px solid var(--line);color:var(--muted);min-height:0}
@@ -80,4 +99,4 @@ footer .logo{margin:0 0 12px;font-size:clamp(28px,3vw,36px)}
 .copy{color:var(--muted);font-size:clamp(15px,1.5vw,18px)}
 mark.todo{background:#ffe866;color:#5a4a00;border-radius:4px;padding:0 4px;font-size:.85em}
 .draft-banner{background:#ffe866;color:#5a4a00;text-align:center;padding:8px 16px;font-size:14px}
-@media (max-width:600px){.pills{gap:30px 12px}.pills li{font-size:18px;padding:12px 22px}.top nav{gap:32px}body{font-size:17px}.lead{font-size:18px;margin-bottom:48px}section{padding:40px 0}}
+@media (max-width:600px){.top nav{gap:32px}body{font-size:17px}.lead{font-size:18px;margin-bottom:48px}section{padding:40px 0}}
