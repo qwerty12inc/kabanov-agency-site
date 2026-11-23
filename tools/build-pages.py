@@ -112,6 +112,7 @@ def render_block(name, body, cfg):
     kind = name.lower()
     parts = []
     steps, faq, cards = [], [], []
+    last_h3 = ''
 
     def flush():
         if steps:
@@ -132,7 +133,10 @@ def render_block(name, body, cfg):
             parts.append(table(lines, cfg))
         elif all(l.strip().startswith('- ') for l in lines):
             flush()
-            parts.append('<ul>' + ''.join(f'<li>{inline(l.strip()[2:], cfg)}</li>' for l in lines) + '</ul>')
+            cls = ''
+            if 'что входит' in kind:  # плитка; «не входит» — приглушённая
+                cls = ' class="tiles muted"' if last_h3.lower().startswith(('что не', 'не ')) else ' class="tiles"'
+            parts.append(f'<ul{cls}>' + ''.join(f'<li>{inline(l.strip()[2:], cfg)}</li>' for l in lines) + '</ul>')
         elif BOLD_LINE.fullmatch(first):
             title = BOLD_LINE.fullmatch(first).group(1).strip()
             rest = [l for l in lines[1:]]
@@ -142,10 +146,16 @@ def render_block(name, body, cfg):
             elif 'кейсы' in kind and rest:
                 link_line = rest[-1] if '[Смотреть кейс]' in rest[-1] else ''
                 text = ' '.join(l for l in rest if l is not link_line)
-                slug = cfg.get('cases', {}).get(title)
-                note = ''.join(f' <mark class="todo">{esc(m)}</mark>' for m in marks_in(link_line))
-                link = f'<a href="{esc(slug)}">Смотреть кейс</a>' if slug else '<span class="nolink">Смотреть кейс</span>'
-                cards.append(f'<article class="card"><h3>{inline(title, cfg)}</h3><p>{inline(text, cfg)}</p><p class="more">{link}{note}</p></article>')
+                case = cfg.get('cases', {}).get(title.split(' — ')[0].strip(), {})
+                notes = [m for m in marks_in(link_line) if not (case.get('href') and 'адрес страницы кейса' in m and ';' not in m)]
+                if not case.get('img'):
+                    notes.append('[? обложка кейса]')
+                note = ''.join(f'<mark class="todo">{esc(m)}</mark> ' for m in notes)
+                img = (f'<img src="{esc(case["img"])}" alt="{html.escape(case.get("alt", ""))}">'
+                       if case.get('img') else '<span class="noimg"></span>')
+                inner = f'<span class="case-img">{img}</span><h3>{inline(title, cfg)}</h3><p>{inline(text, cfg)}</p>'
+                body_ = f'<a href="{esc(case["href"])}">{inner}</a>' if case.get('href') else f'<div>{inner}</div>'
+                cards.append(f'<article class="case">{body_}{f"<p class=notes>{note}</p>" if note else ""}</article>')
             elif 'вопросы' in kind and rest:
                 flush()
                 parts.append(f'<h3>{inline(title, cfg)}</h3><p>{inline(" ".join(rest), cfg)}</p>')
@@ -154,6 +164,7 @@ def render_block(name, body, cfg):
                 parts.append(f'<h2>{inline(title, cfg)}</h2><p>{inline(" ".join(rest), cfg)}</p>')
             else:
                 flush()
+                last_h3 = title
                 parts.append(f'<h3>{inline(title, cfg)}</h3>')
                 if rest:
                     parts.append(f'<p>{inline(" ".join(rest), cfg)}</p>')
@@ -190,7 +201,8 @@ def page(meta, blocks, slug, cfg, draft):
         elif low == 'следующий шаг':
             out.append(f'<section class="next">{inner}</section>')
         else:
-            out.append(f'<section><h2>{esc(name)}</h2>\n{inner}</section>')
+            wide = ' class="wide"' if low == 'кейсы' else ''
+            out.append(f'<section{wide}><h2>{esc(name)}</h2>\n{inner}</section>')
     robots = '<meta name="robots" content="noindex, nofollow">' if draft else ''
     banner = '<div class="draft-banner">Черновик: закрыт от индексации. Жёлтым — пометки, которые нужно снять до публикации.</div>' if draft else ''
     return f'''<!doctype html>

@@ -1,6 +1,6 @@
 @font-face{font-family:"Hagrid Text";font-weight:400;font-display:swap;src:url(/assets/fonts/hagrid-text-regular.5dc5d105d0.woff2) format("woff2")}
 @font-face{font-family:"Clash Display";font-weight:600;font-display:swap;src:url(/assets/fonts/fontshare-Z3MGHFHX6DCTLQ55LJYRJ5MDCZPMFZU6.woff2) format("woff2")}
-:root{--bg:#f8f6f3;--ink:#2a3132;--muted:#5f6566;--navy:#001666;--accent:#ff5500;--line:#e4e0da;--card:#fff}
+:root{--bg:#f8f6f3;--ink:#2a3132;--muted:#5f6566;--navy:#001666;--accent:#ff5500;--line:#e4e0da;--card:#fff;--tile:#ebe9e4}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.5 Switzer,Arial,Helvetica,sans-serif}
@@ -31,11 +31,19 @@ tr.total td{font-weight:700;border-bottom:0}
 .steps li{counter-increment:s;background:var(--card);border-radius:16px;padding:20px 20px 8px;margin:0}
 .steps li::before{content:counter(s);font:400 32px/1 "Hagrid Text",Arial,sans-serif;color:var(--accent)}
 .steps h3{margin-top:12px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-.card{background:var(--card);border-radius:16px;padding:20px}
-.card h3{margin-top:0}
-.more a{font-weight:700}
-.nolink{color:var(--muted)}
+.tiles{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:0 0 24px}
+.tiles li{background:var(--tile);border-radius:16px;padding:20px;margin:0;font-size:18px;line-height:1.3;min-height:88px;display:flex;align-items:flex-end;color:var(--navy)}
+.tiles.muted li{background:transparent;border:1px solid var(--line);color:var(--muted);min-height:0}
+section.wide{width:min(1200px,calc(100vw - 32px));margin-left:50%;transform:translateX(-50%)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:32px}
+.case{display:flex;flex-direction:column}
+.case>a,.case>div{display:block;flex:1;background:var(--tile);border-radius:16px;padding:20px;text-decoration:none;color:inherit}
+.case>a:hover .case-img img{transform:scale(1.03)}
+.case-img{display:block;aspect-ratio:16/10;border-radius:8px;overflow:hidden;background:#dcd8d0;margin-bottom:20px}
+.case-img img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
+.case h3{font-size:24px;font-weight:400;line-height:1.2;margin:0 0 8px;color:var(--ink)}
+.case p{color:var(--muted);font-size:16px;margin:0}
+.case .notes{margin-top:8px}
 .next{text-align:center}
 .next .cta{text-align:center}
 footer{text-align:center;padding:72px 16px 32px}
