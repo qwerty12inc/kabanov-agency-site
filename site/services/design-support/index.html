@@ -43,10 +43,23 @@ table{border-collapse:collapse;width:100%;min-width:520px;background:var(--card)
 th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
 th{color:var(--muted);font-weight:400}
 tr.total td{font-weight:700;border-bottom:0}
-.steps{list-style:none;padding:0;counter-reset:s;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:0 0 24px}
-.steps li{counter-increment:s;background:var(--card);border-radius:16px;padding:20px 20px 8px;margin:0}
-.steps li::before{content:counter(s);font:400 32px/1 "Hagrid Text",Arial,sans-serif;color:var(--accent)}
-.steps h3{margin-top:12px}
+.steps{list-style:none;padding:8px 0 24px;counter-reset:s;display:grid;gap:20px;margin:0 0 24px}
+.steps li{counter-increment:s;margin:0;border-radius:20px;padding:12px 12px 20px;background:var(--c,#d3e7f5);transition:transform .3s}
+.steps li::before{content:counter(s);display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;border-radius:12px;background:rgba(255,255,255,.55);font:400 72px/1 "Hagrid Text",Arial,sans-serif;color:var(--navy);margin-bottom:16px}
+.steps h3{margin:0 8px 6px;font:400 22px/1.2 "Hagrid Text",Arial,sans-serif;color:var(--ink)}
+.steps p{margin:0 8px;font-size:15px;line-height:1.45;color:var(--muted)}
+.steps li:nth-child(6n+1){--c:#d3e7f5;--d:-2.5}
+.steps li:nth-child(6n+2){--c:#cfe6dd;--d:-1.5}
+.steps li:nth-child(6n+3){--c:#ffd88a;--d:-.5}
+.steps li:nth-child(6n+4){--c:#d8f0b8;--d:.5}
+.steps li:nth-child(6n+5){--c:#e6e4f2;--d:1.5}
+.steps li:nth-child(6n+6){--c:#fcd8c8;--d:2.5}
+@media (max-width:1099px){.steps{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}.steps li::before{aspect-ratio:auto;padding:20px 0;font-size:56px}.steps li:nth-child(odd){transform:rotate(-1.5deg)}.steps li:nth-child(even){transform:rotate(1.5deg)}}
+@media (min-width:1100px){
+.steps{display:flex;justify-content:center;align-items:stretch;gap:14px;width:min(1360px,calc(100vw - 32px));margin-left:50%;transform:translateX(-50%);padding:24px 0 64px}
+.steps li{flex:0 1 210px;transform:translateY(calc(var(--d) * var(--d) * 9px)) rotate(calc(var(--d) * 5deg))}
+.steps li:hover{transform:translateY(calc(var(--d) * var(--d) * 9px - 10px)) rotate(calc(var(--d) * 5deg))}
+}
 .included{border-top:0}
 .orbit{position:relative;text-align:center}
 .orbit h2{margin:0 0 32px}
