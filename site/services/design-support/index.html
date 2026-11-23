@@ -71,10 +71,16 @@ section.wide{width:min(1200px,calc(100vw - 32px));margin-left:50%;transform:tran
 .next{text-align:center}
 .next .cta{text-align:center}
 footer{text-align:center;padding:72px 16px 32px}
-.footer-title{font-size:clamp(36px,6vw,64px);line-height:1;margin:0 0 24px}
-.contacts{list-style:none;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:12px 32px;margin:0 0 72px;font-size:18px}
-footer .logo{margin:0 0 8px}
-.copy{color:var(--muted);font-size:14px}
+.footer-title{font-size:clamp(48px,8vw,120px);line-height:1;margin:0 0 24px}
+.footer-sub{color:var(--muted);font-size:clamp(18px,2vw,24px);margin:0 0 48px}
+.contacts{list-style:none;padding:0;margin:0 auto 120px;max-width:1000px;display:grid;gap:16px;text-align:left}
+.contacts li{margin:0}
+.contacts a{display:flex;justify-content:space-between;gap:16px;background:var(--tile);border-radius:24px;padding:40px 48px;text-decoration:none;color:var(--ink);font:400 clamp(18px,2vw,22px)/1.2 "Hagrid Text",Arial,sans-serif;transition:background .2s}
+.contacts a:hover{background:#e2dfd8}
+.contacts span:last-child{text-align:right;overflow-wrap:anywhere}
+@media (max-width:600px){.contacts a{padding:24px 20px;border-radius:16px}}
+footer .logo{margin:0 0 12px;font-size:clamp(28px,3vw,36px)}
+.copy{color:var(--muted);font-size:clamp(15px,1.5vw,18px)}
 mark.todo{background:#ffe866;color:#5a4a00;border-radius:4px;padding:0 4px;font-size:.85em}
 .draft-banner{background:#ffe866;color:#5a4a00;text-align:center;padding:8px 16px;font-size:14px}
 @media (max-width:600px){.top nav{gap:32px}body{font-size:17px}.lead{font-size:18px;margin-bottom:48px}section{padding:40px 0}}
@@ -136,11 +142,13 @@ mark.todo{background:#ffe866;color:#5a4a00;border-radius:4px;padding:0 4px;font-
 <p class="cta"><a class="button" href="https://t.me/kabanov_agency">Прислать бриф</a></p></section>
 </main>
 <footer id="contacts">
-<p class="footer-title">Обсудим ваши задачи?</p>
+<p class="footer-title">Обсудим<br>ваши задачи?</p>
+<p class="footer-sub">Мы на связи 24/7</p>
 <ul class="contacts">
-<li><a href="mailto:hello@kabanov.agency">hello@kabanov.agency</a></li>
-<li><a href="https://t.me/kabanov_agency">Telegram</a></li>
-<li><a href="https://vimeo.com/kabanovagency">Vimeo</a></li>
+<li><a href="mailto:hello@kabanov.agency"><span>Почта</span><span>hello@kabanov.agency</span></a></li>
+<li><a href="https://t.me/kabanov_agency"><span>Телеграм</span><span>@kabanov_agency</span></a></li>
+<li><a href="https://vimeo.com/kabanovagency"><span>Vimeo</span><span>kabanov agency</span></a></li>
+<li><a href="https://www.figma.com/proto/A6np5wJyAAdvY5uFyWwg0v/kda_presentation?node-id=1-6894&amp;viewport=4938%2C1095%2C0.28&amp;t=jlmRVnvuFjopZUfQ-1&amp;scaling=scale-down-width&amp;content-scaling=fixed&amp;page-id=0%3A1"><span>Презентация</span><span>Figma</span></a></li>
 </ul>
 <p class="logo">kabanov<br>agency</p>
 <p class="copy">© 2026 ООО «КДА»</p>

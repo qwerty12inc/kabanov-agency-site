@@ -38,6 +38,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SITE = 'https://kabanov.agency'
 MARK = re.compile(r'\[\?[^\]]*\]|\[уточнить[^\]]*\]|\[на утверждение[^\]]*\]')
+FIGMA = 'https://www.figma.com/proto/A6np5wJyAAdvY5uFyWwg0v/kda_presentation?node-id=1-6894&amp;viewport=4938%2C1095%2C0.28&amp;t=jlmRVnvuFjopZUfQ-1&amp;scaling=scale-down-width&amp;content-scaling=fixed&amp;page-id=0%3A1'
 CONFIG = ROOT / 'tools' / 'pages.json'  # адрес кнопки «Прислать бриф», адреса кейсов и т. п.
 
 
@@ -237,11 +238,13 @@ def page(meta, blocks, slug, cfg, draft):
 {chr(10).join(out)}
 </main>
 <footer id="contacts">
-<p class="footer-title">Обсудим ваши задачи?</p>
+<p class="footer-title">Обсудим<br>ваши задачи?</p>
+<p class="footer-sub">Мы на связи 24/7</p>
 <ul class="contacts">
-<li><a href="mailto:hello@kabanov.agency">hello@kabanov.agency</a></li>
-<li><a href="https://t.me/kabanov_agency">Telegram</a></li>
-<li><a href="https://vimeo.com/kabanovagency">Vimeo</a></li>
+<li><a href="mailto:hello@kabanov.agency"><span>Почта</span><span>hello@kabanov.agency</span></a></li>
+<li><a href="https://t.me/kabanov_agency"><span>Телеграм</span><span>@kabanov_agency</span></a></li>
+<li><a href="https://vimeo.com/kabanovagency"><span>Vimeo</span><span>kabanov agency</span></a></li>
+<li><a href="{FIGMA}"><span>Презентация</span><span>Figma</span></a></li>
 </ul>
 <p class="logo">kabanov<br>agency</p>
 <p class="copy">© {date.today().year} ООО «КДА»</p>
