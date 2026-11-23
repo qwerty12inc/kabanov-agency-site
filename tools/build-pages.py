@@ -256,8 +256,7 @@ def page(meta, blocks, slug, cfg, draft):
             ol, rest = inner.split('</ol>', 1)
             out.append(f'<section class="how"><div class="steps-pin"><div class="steps-stage"><h2>{esc(name)}</h2>\n{ol}</ol></div></div>\n{rest}</section>')
         else:
-            wide = ' class="wide"' if low == 'кейсы' else ''
-            out.append(f'<section{wide}><h2>{esc(name)}</h2>\n{inner}</section>')
+            out.append(f'<section><h2>{esc(name)}</h2>\n{inner}</section>')
     robots = '<meta name="robots" content="noindex, nofollow">' if draft else ''
     banner = '<div class="draft-banner">Черновик: закрыт от индексации. Жёлтым — пометки, которые нужно снять до публикации.</div>' if draft else ''
     return f'''<!doctype html>
