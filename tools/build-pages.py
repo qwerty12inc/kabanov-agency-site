@@ -121,6 +121,9 @@ def render_block(name, body, cfg):
         if cards:
             parts.append('<div class="cards">' + ''.join(cards) + '</div>')
             cards.clear()
+        if faq:
+            parts.append('<div class="faq">' + ''.join(faq) + '</div>')
+            faq.clear()
 
     for c in chunks_of(body):
         lines = c.split('\n')
@@ -157,8 +160,8 @@ def render_block(name, body, cfg):
                 body_ = f'<a href="{esc(case["href"])}">{inner}</a>' if case.get('href') else f'<div>{inner}</div>'
                 cards.append(f'<article class="case">{body_}{f"<p class=notes>{note}</p>" if note else ""}</article>')
             elif 'вопросы' in kind and rest:
-                flush()
-                parts.append(f'<h3>{inline(title, cfg)}</h3><p>{inline(" ".join(rest), cfg)}</p>')
+                # аккордеон на <details>: ответ лежит в HTML сразу, без JavaScript (п. 4 ТЗ)
+                faq.append(f'<details><summary><h3>{inline(title, cfg)}</h3></summary><p>{inline(" ".join(rest), cfg)}</p></details>')
             elif 'следующий шаг' in kind and rest:
                 flush()
                 parts.append(f'<h2>{inline(title, cfg)}</h2><p>{inline(" ".join(rest), cfg)}</p>')
