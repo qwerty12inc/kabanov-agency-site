@@ -139,7 +139,7 @@ def render_block(name, body, cfg):
             flush()
             cls = ''
             if 'что входит' in kind:  # плитка; «не входит» — приглушённая
-                cls = ' class="tiles muted"' if last_h3.lower().startswith(('что не', 'не ')) else ' class="tiles"'
+                cls = ' class="tiles muted"' if last_h3.lower().startswith(('что не', 'не ')) else ' class="pills"'
             parts.append(f'<ul{cls}>' + ''.join(f'<li>{inline(l.strip()[2:], cfg)}</li>' for l in lines) + '</ul>')
         elif BOLD_LINE.fullmatch(first):
             title = BOLD_LINE.fullmatch(first).group(1).strip()
