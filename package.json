@@ -12,6 +12,7 @@
     "hide-queries": "node tools/hide-queries.mjs",
     "cms-version": "node tools/cms-version.mjs",
     "add-project": "python3 tools/add-project.py",
+    "fix-next": "python3 tools/fix-next.py",
     "cms-ranges": "python3 tools/cms-ranges.py",
     "serve": "node tools/serve.mjs",
     "audit": "node tools/audit.mjs",
