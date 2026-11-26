@@ -6,8 +6,6 @@
 #   * вручную: Actions → Deploy → Run workflow (кнопка появится, когда файл попадёт в main).
 #
 # Что делает: собирает .gz/.br (npm run precompress) и заливает site/ через rsync --delete.
-# Папка /web-projects/ на сервере (архивные копии клиентских сайтов, их кладут вручную,
-# в репозитории их нет) из заливки исключена: --delete её не трогает.
 # Ключ DEPLOY_SSH_KEY на сервере ограничен rrsync: он может только писать в
 # /var/www/kabanov.agency — без shell и без sudo. Конфиг nginx этот процесс не трогает,
 # его по-прежнему меняют вручную (deploy/DEPLOY.md, шаг 5).
@@ -60,7 +58,7 @@ jobs:
 
       - name: Заливка (rsync)
         run: |
-          rsync -az --delete --stats --exclude='.DS_Store' --exclude='/web-projects/' \
+          rsync -az --delete --stats --exclude='.DS_Store' \
             -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
             site/ "deploy@${HOST}:./"
 
