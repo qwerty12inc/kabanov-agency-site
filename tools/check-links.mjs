@@ -10,6 +10,8 @@ const REF_RE = /["'`(]\/assets\/[^"'`)\s\\]+/g;
 
 async function* walk(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
+    // site/web-projects — сторонние сайты-витрины (не копия Framer), правки и проверки копии их не касаются
+    if (e.name === 'web-projects') continue;
     const p = join(dir, e.name);
     if (e.isDirectory()) yield* walk(p);
     else yield p;

@@ -241,6 +241,8 @@ async function pruneSitemaps() {
 
 async function* htmlFiles(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
+    // site/web-projects — сторонние сайты-витрины (не копия Framer), правки и проверки копии их не касаются
+    if (entry.name === 'web-projects') continue;
     const path = join(dir, entry.name);
     if (entry.isDirectory()) yield* htmlFiles(path);
     else if (entry.name.endsWith('.html')) yield path;
