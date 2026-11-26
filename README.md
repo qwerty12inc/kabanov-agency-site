@@ -362,9 +362,7 @@ HTML.
 | `/web-projects/vk-2022` | «Итоги 2022» (3D-главная, внутренние страницы, `/like` — «От всего сердечка») | GitLab `kabanovagency/vk/2022`, ветка `staging`; `npm run build` со старым `sass@1.35.1` (на новом стили не собираются) |
 | `/web-projects/vk-dating` | «VK Знакомства» | GitLab `kabanovagency/vk/vk-dating`, `master`; `BASE_PATH=/web-projects/vk-dating/ vite build` |
 | `/web-projects/vk-w24` | «Включай скорее» (W24) | GitLab `kabanovagency/vk/w24`, `dev`; `BASE_PATH=/web-projects/vk-w24/ vite build` |
-| `/web-projects/vk-fandom-fest/v1` | «Фандом Фест» 2023 | GitLab `kabanovagency/vk/vk-future-fest`, `master`; gulp |
-| `/web-projects/vk-fandom-fest/v2` | «Фандом Фест» 2024, первая версия лендинга | GitLab `kabanovagency/vk/vk-landings`, `master`; `LANDING=fandom-fest BASE_PATH=… vite build` |
-| `/web-projects/vk-fandom-fest/v3` | «Фандом Фест» 2024, готовая сборка июля 2024 | GitLab `kda9574717/vk/fandom`, `staging`, папка `fandom-fest-2024` |
-| `/web-projects/vk-fandom-fest/v4` | «Фандом Фест» 2024, вторая версия лендинга (август 2024) | GitLab `kabanovagency/vk/vk-landings`, `master`; `LANDING=fandom-fest-v2 BASE_PATH=… vite build` |
+| `/web-projects/vk-fandom-fest/v1` | «Фандом Фест» 2024, первая версия лендинга | GitLab `kabanovagency/vk/vk-landings`, `master`; `LANDING=fandom-fest BASE_PATH=… vite build` |
+| `/web-projects/vk-fandom-fest/v2` | «Фандом Фест» 2024, вторая версия лендинга (август 2024) | GitLab `kabanovagency/vk/vk-landings`, `master`; `LANDING=fandom-fest-v2 BASE_PATH=… vite build` |
 
 У всех сайтов витрины пути переписаны под свою папку, счётчики клиента убраны, стоит `noindex`.
