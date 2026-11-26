@@ -1,0 +1,6 @@
+"use strict";
+/**
+ * leaflet plugin for plain image map projection
+ * @copyright 2016- commenthol
+ * @license MIT
+ */!function(t){var e;if("function"==typeof define&&define.amd)define(["leaflet"],t);else if("undefined"!=typeof module)e=require("leaflet"),module.exports=t(e);else{if(void 0===window.L)throw new Error("Leaflet must be loaded first");t(window.L)}}((function(t){return t.RasterCoords=function(t,e,i){var o=!(arguments.length>3&&void 0!==arguments[3])||arguments[3];this.map=t,this.width=e[0],this.height=e[1],this.tilesize=i||256,this.zoom=this.zoomLevel(),o&&this.width&&this.height&&this.setMaxBounds()},t.RasterCoords.prototype={zoomLevel:function(){return Math.ceil(Math.log(Math.max(this.width,this.height)/this.tilesize)/Math.log(2))},unproject:function(t){return this.map.unproject(t,this.zoom)},project:function(t){return this.map.project(t,this.zoom)},getMaxBounds:function(){var e=this.unproject([0,this.height]),i=this.unproject([this.width,0]);return new t.LatLngBounds(e,i)},setMaxBounds:function(){var t=this.getMaxBounds();this.map.setMaxBounds(t)}},t.RasterCoords}));

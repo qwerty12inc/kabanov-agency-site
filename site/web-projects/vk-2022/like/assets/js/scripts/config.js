@@ -1,0 +1,1 @@
+"use strict";var APP={name:"iBrush HTML Starter"};

@@ -1,0 +1,1 @@
+"use strict";function disableGlow(){$(".js-city circle").removeClass("glow--1 glow--2 glow--3")}function enableGlow(){$(".js-city circle").each((function(l){(l+1)%3==0?$(this).addClass("glow--3"):(l+1)%2==0?$(this).addClass("glow--2"):$(this).addClass("glow--1")}))}enableGlow();
